@@ -2,6 +2,7 @@ from multiprocessing import cpu_count, Manager, Pool
 import numpy as np
 import operator
 import random
+from scipy.optimize import curve_fit
 import sympy
 
 def split_dict_equally(d, n):
@@ -11,7 +12,7 @@ def split_dict_equally(d, n):
     return [dict(items[i*chunk_size:(i+1)*chunk_size]) for i in range(n)]
 
 def eval_binary_combination(args):
-    key1, key2, name, expressions, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, shared_finished = args
+    key1, key2, name, expressions, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, binary_models, shared_finished = args
 
     if (shared_finished.value):
         return None
@@ -21,7 +22,8 @@ def eval_binary_combination(args):
     x1, loss1 = value1
     x2, loss2 = value2
 
-    try:
+    #try:
+    if (True):
         new_expr = binary_operator(x1, x2)
         
         if (name.isalnum()):
@@ -38,6 +40,26 @@ def eval_binary_combination(args):
             return None
 
         loss = loss_func(new_expr, y)
+
+        if (len(binary_models)):
+            binary_model_params = []
+            model_losses = []
+            models = []
+
+            for model in binary_models:
+                models.append(model(binary_operator))
+                params, _ = curve_fit(models[-1], (x1, x2), y)
+                binary_model_params.append(params)
+                y_pred = models[-1]((x1, x2), *params)
+                model_losses.append(loss_func(y_pred, y))
+
+            sorted_model_losses, sorted_binary_model_params, sorted_models = zip(*sorted(zip(model_losses, binary_model_params, models)))
+
+            if (sorted_model_losses[0] < loss):
+                params = sorted_binary_model_params[0]
+                new_expr = sorted_models[0]((x1, x2), *params)
+                sym_expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
+                loss = sorted_model_losses[0]
 
         if (loss < eps):
             if (not sym_expr in avoided_expr):
@@ -56,8 +78,18 @@ def eval_binary_combination(args):
             return None
 
         return (str(sym_expr), new_expr, loss)
-    except Exception:
-        return None
+    #except Exception:
+    #    return None
+
+def unary_linear_model(x, a, b):
+    return a * x + b
+
+def binary_linear_model(func):
+    def model(xdata, a, b, c):
+        x1, x2 = xdata
+        return func(a * x1, b * x2) + c
+
+    return model
 
 def mse_loss(x, y):
     return np.sum((x - y) ** 2)
@@ -79,7 +111,9 @@ class SR:
                  group_expr_size = -1,
                  eps = 1e-12,
                  avoided_expr = [],
-                 subs_expr = {}):
+                 subs_expr = {},
+                 unary_models = [],
+                 binary_models = []):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -96,6 +130,8 @@ class SR:
         self.eps = eps
         self.avoided_expr = avoided_expr
         self.subs_expr = subs_expr
+        self.unary_models = unary_models
+        self.binary_models = binary_models
         
         assert(self.eps > 0)
 
@@ -125,15 +161,54 @@ class SR:
         expressions = {}
 
         for i in range(0, len(symbols)):
-            expressions[symbols[i]] = (X[i], self.elementwise_loss(X[i], y))
+            newExpr = symbols[i]
+
+            newLoss = self.elementwise_loss(X[i], y)
+            newx = X[i]
+
+            if (len(self.unary_models)):
+                unary_model_params = []
+                model_losses = []
+
+                for model in self.unary_models:
+                    params, _ = curve_fit(model, newx, y)
+                    unary_model_params.append(params)
+                    y_pred = model(newx, *params)
+                    model_losses.append(self.elementwise_loss(y_pred, y))
+
+                sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
+
+                if (sorted_model_losses[0] < newLoss):
+                    params = sorted_unary_model_params[0]
+                    newx = sorted_unary_models[0](newx, *params)
+                    newExpr = sorted_unary_models[0](newExpr, *params)
+                    newLoss = sorted_model_losses[0]
+
+            expressions[str(newExpr)] = (newx, newLoss)
+
+        losses = [value[1] for key, value in expressions.items()]
+        sortedLosses, sortedExpressions = zip(*sorted(zip(losses, [str(x) for x in expressions.keys()])))
+
+        self.bestExpressions = []
+
+        for i in range(0, len(sortedLosses)):
+            if (sortedLosses[i] >= self.eps):
+                break
+
+            expr = sympy.simplify(sortedExpressions[i])
+            
+            if (not expr in self.avoided_expr):
+                self.bestExpressions.append(expr)
+
+        if (len(self.bestExpressions)):
+            return
+
+        self.expressions = []
 
         for j in range(0, self.niterations):
             if (self.verbose):
                 print("Iteration #" + str(j))
 
-            losses = [value[1] for key, value in expressions.items()]
-
-            sortedLosses = sorted(losses)
             keys = list(expressions.keys())
 
             self.lastIteration = j
@@ -152,7 +227,24 @@ class SR:
                         newx = unary_operator(x)
 
                         newLoss = self.elementwise_loss(newx, y)
-                        
+
+                        if (len(self.unary_models)):
+                            unary_model_params = []
+                            model_losses = []
+                            
+                            for model in self.unary_models:
+                                params, _ = curve_fit(model, newx, y)
+                                unary_model_params.append(params)
+                                y_pred = model(newx, *params)
+                                model_losses.append(self.elementwise_loss(newx, y))
+                            
+                            sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
+
+                            if (sorted_model_losses[0] < newLoss):
+                                newx = sorted_unary_models(newx, *sorted_unary_model_params[0])
+                                newExpr = sorted_unary_models(newExpr, *sorted_unary_model_params[0])
+                                newLoss = sorted_model_losses[0]
+
                         expr = sympy.simplify(newExpr)
                         
                         for key, value in self.subs_expr.items():
@@ -203,7 +295,8 @@ class SR:
                             for i2 in indices2:
                                 tasks.append((keys[i1], keys[i2], name, expressions, binary_operator, y,
                                               self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
-                                              self.eps, self.avoided_expr, self.foundBreak, self.subs_expr, shared_finished))
+                                              self.eps, self.avoided_expr, self.foundBreak, self.subs_expr,
+                                              self.binary_models, shared_finished))
 
                 with Pool(processes = cpu_count()) as pool:
                     results = pool.map(eval_binary_combination, tasks)
@@ -265,11 +358,11 @@ def test1():
                symmetric_binary_operators = ["+", "*", "conv"])
     #unary_operators = {"-": operator.neg, "abs": operator.abs,
     #                   "inv": lambda x: 1 / x,
-    #                   "sqrt": lambda x: np.sqrt(x),
-    #                   "cos": lambda x: np.cos(x),
-    #                   "sin": lambda x: np.sin(x),
-    #                   "ln": lambda x: np.log(x),
-    #                   "exp": lambda x: np.exp(x),}
+    #                   "sqrt": np.sqrt,
+    #                   "cos": np.cos,
+    #                   "sin": np.sin,
+    #                   "ln": np.log,
+    #                   "exp": np.exp,}
     #binary_operators = {"+": operator.add, "-": operator.sub,
     #                    "*": operator.mul, "/": operator.truediv, "//": operator.floordiv,
     #                    "%": operator.mod,
@@ -340,6 +433,52 @@ def test4():
     print("Model found in " + str(model.lastIteration + 1) + " iterations")
     print(model.bestExpressions)
 
+def test5():
+    model = SR(niterations = 5,
+               binary_operators = {"+": operator.sub},
+               foundBreak = True,
+               symmetric_binary_operators = ["+", "*", "conv"],
+               unary_models = [unary_linear_model])
+
+    n = 10
+    x1 = np.random.rand(n)
+    x2 = np.random.rand(n)
+    X = [x1, x2]
+    a = random.random()
+    b = random.random()
+    y = a * x1 + b
+    print("a", a)
+    print("b", b)
+
+    model.predict(X, y, ["x1", "x2"])
+
+    print("Model found in " + str(model.lastIteration + 1) + " iterations")
+    print(model.bestExpressions)
+
+def test6():
+    model = SR(niterations = 5,
+               binary_operators = {"+": operator.sub},
+               foundBreak = True,
+               symmetric_binary_operators = ["+", "*", "conv"],
+               binary_models = [binary_linear_model])
+
+    n = 10
+    x1 = np.random.rand(n)
+    x2 = np.random.rand(n)
+    X = [x1, x2]
+    a = random.random()
+    b = random.random()
+    c = random.random()
+    y = a * x1 + b * x2 + c
+    print("a", a)
+    print("b", b)
+    print("c", c)
+
+    model.predict(X, y, ["x1", "x2"])
+
+    print("Model found in " + str(model.lastIteration + 1) + " iterations")
+    print(model.bestExpressions)
+
 if (__name__ == "__main__"):
     import multiprocessing
 
@@ -349,3 +488,5 @@ if (__name__ == "__main__"):
     test2()
     test3()
     test4()
+    test5()
+    test6()
