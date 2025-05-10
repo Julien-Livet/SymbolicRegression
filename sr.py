@@ -143,7 +143,7 @@ class SR:
         self.lastIteration = -1
         self.expressions = []
 
-        given_symbols = sympy.symbols(" ".join(variable_names))
+        given_symbols = sympy.symbols(" ".join(variable_names)) if len(variable_names) else []
 
         if (type(given_symbols) == sympy.Symbol):
             given_symbols = [given_symbols]
@@ -435,7 +435,7 @@ def test4():
 
 def test5():
     model = SR(niterations = 5,
-               binary_operators = {"+": operator.sub},
+               binary_operators = {"+": operator.add},
                foundBreak = True,
                symmetric_binary_operators = ["+", "*", "conv"],
                unary_models = [unary_linear_model])
@@ -457,7 +457,7 @@ def test5():
 
 def test6():
     model = SR(niterations = 5,
-               binary_operators = {"+": operator.sub},
+               binary_operators = {"+": operator.add},
                foundBreak = True,
                symmetric_binary_operators = ["+", "*", "conv"],
                binary_models = [binary_linear_model])
@@ -479,6 +479,22 @@ def test6():
     print("Model found in " + str(model.lastIteration + 1) + " iterations")
     print(model.bestExpressions)
 
+def testpysr():
+    X = 2 * np.random.randn(5, 100)
+    y = 2.5382 * np.cos(X[3, :]) + X[0, :] ** 2 - 0.5
+    
+    model = SR(niterations = 10,
+               unary_operators = {"cos": np.cos},
+               binary_operators = {"+": operator.add, "*": operator.mul},
+               foundBreak = True,
+               symmetric_binary_operators = ["+", "*", "conv"],
+               binary_models = [binary_linear_model])
+
+    model.predict(X, y)
+
+    print("Model found in " + str(model.lastIteration + 1) + " iterations")
+    print(model.bestExpressions)
+
 if (__name__ == "__main__"):
     import multiprocessing
 
@@ -490,3 +506,4 @@ if (__name__ == "__main__"):
     test4()
     test5()
     test6()
+    testpysr()
