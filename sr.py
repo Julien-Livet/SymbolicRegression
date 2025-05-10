@@ -11,7 +11,7 @@ def split_dict_equally(d, n):
     return [dict(items[i*chunk_size:(i+1)*chunk_size]) for i in range(n)]
 
 def eval_binary_combination(args):
-    key1, key2, name, expressions, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, shared_finished = args
+    key1, key2, name, expressions, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, shared_finished = args
 
     if (shared_finished.value):
         return None
@@ -30,20 +30,26 @@ def eval_binary_combination(args):
             expr_str = f"({expr1}){name}({expr2})"
 
         sym_expr = sympy.sympify(expr_str)
-        
+
+        for key, value in subs_expr.items():
+            sym_expr = sympy.simplify(sym_expr.subs(key, value))
+
         if (sym_expr in expressions):
             return None
 
         loss = loss_func(new_expr, y)
 
         if (loss < eps):
-            if (not sympy.simplify(sym_expr) in avoided_expr):
+            if (not sym_expr in avoided_expr):
                 if (verbose):
-                    print("Found expression:", sympy.simplify(sym_expr))
+                    print("Found expression:", sym_expr)
 
                 if (foundBreak):
                     shared_finished.value = True
         else:
+            if (sym_expr in avoided_expr):
+                return None
+
             loss += loss1 + loss2
 
         if (maxloss > 0 and loss > maxloss) or (maxsymbols > 0 and len(sym_expr.free_symbols) > maxsymbols):
@@ -72,7 +78,8 @@ class SR:
                  verbose = False,
                  group_expr_size = -1,
                  eps = 1e-12,
-                 avoided_expr = []):
+                 avoided_expr = [],
+                 subs_expr = {}):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -88,6 +95,7 @@ class SR:
         self.group_expr_size = group_expr_size
         self.eps = eps
         self.avoided_expr = avoided_expr
+        self.subs_expr = subs_expr
         
         assert(self.eps > 0)
 
@@ -144,10 +152,15 @@ class SR:
                         newx = unary_operator(x)
 
                         newLoss = self.elementwise_loss(newx, y)
+                        
+                        expr = sympy.simplify(newExpr)
+                        
+                        for key, value in self.subs_expr.items():
+                            expr = sympy.simplify(expr.subs(key, value))
 
-                        if (loss < self.eps and not sympy.simplify(newExpr) in self.avoided_expr):
+                        if (loss < self.eps and not expr in self.avoided_expr):
                             if (self.verbose):
-                                print("Found expression:", sympy.simplify(newExpr))
+                                print("Found expression:", expr)
 
                             if (self.foundBreak):
                                 finished = True
@@ -155,8 +168,9 @@ class SR:
 
                         newLoss += loss
                         
-                        if (self.maxloss > 0 and loss <= self.maxloss):
-                            newExpressions[str(newExpr)] = (newx, newLoss)
+                        if ((self.maxloss > 0 and loss <= self.maxloss)
+                            and not expr in self.avoided_expr):
+                            newExpressions[str(expr)] = (newx, newLoss)
 
             expressions = {**expressions, **newExpressions}
 
@@ -189,7 +203,7 @@ class SR:
                             for i2 in indices2:
                                 tasks.append((keys[i1], keys[i2], name, expressions, binary_operator, y,
                                               self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
-                                              self.eps, self.avoided_expr, self.foundBreak, shared_finished))
+                                              self.eps, self.avoided_expr, self.foundBreak, self.subs_expr, shared_finished))
 
                 with Pool(processes = cpu_count()) as pool:
                     results = pool.map(eval_binary_combination, tasks)
