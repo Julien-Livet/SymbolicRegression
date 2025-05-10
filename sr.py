@@ -47,11 +47,14 @@ def eval_binary_combination(args):
             models = []
 
             for model in binary_models:
-                models.append(model(binary_operator))
-                params, _ = curve_fit(models[-1], (x1, x2), y)
-                binary_model_params.append(params)
-                y_pred = models[-1]((x1, x2), *params)
-                model_losses.append(loss_func(y_pred, y))
+                try:
+                    models.append(model(binary_operator))
+                    params, _ = curve_fit(models[-1], (x1, x2), y)
+                    binary_model_params.append(params)
+                    y_pred = models[-1]((x1, x2), *params)
+                    model_losses.append(loss_func(y_pred, y))
+                except RuntimeError:
+                    pass
 
             sorted_model_losses, sorted_binary_model_params, sorted_models = zip(*sorted(zip(model_losses, binary_model_params, models)))
 
@@ -113,7 +116,8 @@ class SR:
                  avoided_expr = [],
                  subs_expr = {},
                  unary_models = [],
-                 binary_models = []):
+                 binary_models = [],
+                 sort_by_loss = False):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -132,6 +136,7 @@ class SR:
         self.subs_expr = subs_expr
         self.unary_models = unary_models
         self.binary_models = binary_models
+        self.sort_by_loss = sort_by_loss
         
         assert(self.eps > 0)
 
@@ -171,10 +176,13 @@ class SR:
                 model_losses = []
 
                 for model in self.unary_models:
-                    params, _ = curve_fit(model, newx, y)
-                    unary_model_params.append(params)
-                    y_pred = model(newx, *params)
-                    model_losses.append(self.elementwise_loss(y_pred, y))
+                    try:
+                        params, _ = curve_fit(model, newx, y)
+                        unary_model_params.append(params)
+                        y_pred = model(newx, *params)
+                        model_losses.append(self.elementwise_loss(y_pred, y))
+                    except RuntimeError:
+                        pass
 
                 sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
 
@@ -231,12 +239,15 @@ class SR:
                         if (len(self.unary_models)):
                             unary_model_params = []
                             model_losses = []
-                            
+
                             for model in self.unary_models:
-                                params, _ = curve_fit(model, newx, y)
-                                unary_model_params.append(params)
-                                y_pred = model(newx, *params)
-                                model_losses.append(self.elementwise_loss(newx, y))
+                                try:
+                                    params, _ = curve_fit(model, newx, y)
+                                    unary_model_params.append(params)
+                                    y_pred = model(newx, *params)
+                                    model_losses.append(self.elementwise_loss(newx, y))
+                                except RuntimeError:
+                                    pass
                             
                             sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
 
@@ -259,12 +270,15 @@ class SR:
                                 break
 
                         newLoss += loss
-                        
-                        if ((self.maxloss > 0 and loss <= self.maxloss)
+
+                        if ((self.maxloss <= 0 or newLoss <= self.maxloss)
                             and not expr in self.avoided_expr):
                             newExpressions[str(expr)] = (newx, newLoss)
 
             expressions = {**expressions, **newExpressions}
+
+            if (self.sort_by_loss):
+                expressions = dict(sorted(expressions.items(), key=lambda item: item[1][1]))
 
             newExpressions = {}
 
@@ -319,6 +333,9 @@ class SR:
                 expressions = {}
 
             expressions = {**expressions, **newExpressions}
+
+            if (self.sort_by_loss):
+                expressions = dict(sorted(expressions.items(), key=lambda item: item[1][1]))
 
             if (self.maxexpr > 0):
                 while (len(expressions) > self.maxexpr):
@@ -482,7 +499,7 @@ def test6():
 def testpysr():
     X = 2 * np.random.randn(5, 100)
     y = 2.5382 * np.cos(X[3, :]) + X[0, :] ** 2 - 0.5
-    
+
     model = SR(niterations = 10,
                unary_operators = {"cos": np.cos},
                binary_operators = {"+": operator.add, "*": operator.mul},
