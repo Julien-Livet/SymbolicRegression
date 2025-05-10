@@ -85,9 +85,9 @@ def unary_linear_model(x, a, b):
     return a * x + b
 
 def binary_linear_model(func):
-    def model(xdata, a, b, c):
+    def model(xdata, a, b, c, d):
         x1, x2 = xdata
-        return func(a * x1, b * x2) + c
+        return a * func(b * x1, c * x2) + d
 
     return model
 
