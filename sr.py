@@ -84,7 +84,7 @@ def eval_binary_combination(args):
                         for i in range(0, len(p)):
                             if (abs(abs(p) - 1) < eps):
                                 p[i] = sign(p)
-                        params = p
+                        params = norm * p
                     expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
 
                     expr = sympy.factor(sympy.sympify(expr))
@@ -242,7 +242,7 @@ class SR:
                             for i in range(0, len(p)):
                                 if (abs(abs(p) - 1) < eps):
                                     p[i] = sign(p)
-                            params = p
+                            params = norm * p
                         expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
 
                         expr = sympy.factor(sympy.sympify(expr))
