@@ -11,6 +11,24 @@ def split_dict_equally(d, n):
 
     return [dict(items[i*chunk_size:(i+1)*chunk_size]) for i in range(n)]
 
+def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-9):
+    expr = sympy.factor(sympy.sympify(expr1 - expr2))
+
+    for key, value in subs_expr.items():
+        expr = expr.subs(key, value)
+
+    expr = sympy.simplify(expr)
+
+    expr = expr.replace(
+        lambda e: e.is_Number and abs(e.evalf()) < eps,
+        lambda e: 0
+    )
+
+    return sympy.simplify(expr) == sympy.sympify("0")
+
+def sign(num):
+    return -1 if num < 0 else 1
+
 def eval_binary_combination(args):
     key1, key2, name, expressions, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, binary_models, shared_finished = args
 
@@ -22,8 +40,7 @@ def eval_binary_combination(args):
     x1, loss1 = value1
     x2, loss2 = value2
 
-    #try:
-    if (True):
+    try:
         new_expr = binary_operator(x1, x2)
         
         if (name.isalnum()):
@@ -60,13 +77,25 @@ def eval_binary_combination(args):
                 sorted_model_losses, sorted_binary_model_params, sorted_models = zip(*sorted(zip(model_losses, binary_model_params, models)))
 
                 if (sorted_model_losses[0] < loss):
-                    params = sorted_binary_model_params[0]
+                    params = np.array(sorted_binary_model_params[0])
+                    norm = np.linalg.norm(params)
+                    if (norm > eps):
+                        p = params / norm
+                        for i in range(0, len(p)):
+                            if (abs(abs(p) - 1) < eps):
+                                p[i] = sign(p)
+                        params = p
                     expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
 
                     expr = sympy.factor(sympy.sympify(expr))
 
                     for key, value in subs_expr.items():
                         expr = sympy.simplify(expr.subs(key, value))
+
+                    expr = expr.replace(
+                        lambda e: e.is_Number and abs(e.evalf()) < eps,
+                        lambda e: 0
+                    )
 
                     if (expr in expressions):
                         return None
@@ -97,8 +126,8 @@ def eval_binary_combination(args):
             return None
 
         return (str(sym_expr), new_expr, loss)
-    #except Exception:
-    #    return None
+    except Exception:
+        return None
 
 def unary_linear_model(x, a, b):
     return a * x + b
@@ -128,7 +157,7 @@ class SR:
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
-                 eps = 1e-12,
+                 eps = 1e-6,
                  avoided_expr = [],
                  subs_expr = {},
                  unary_models = [],
@@ -206,13 +235,25 @@ class SR:
                     sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
 
                     if (sorted_model_losses[0] < newLoss):
-                        params = sorted_binary_model_params[0]
+                        params = np.array(sorted_binary_model_params[0])
+                        norm = np.linalg.norm(params)
+                        if (norm > eps):
+                            p = params / norm
+                            for i in range(0, len(p)):
+                                if (abs(abs(p) - 1) < eps):
+                                    p[i] = sign(p)
+                            params = p
                         expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
 
                         expr = sympy.factor(sympy.sympify(expr))
 
                         for key, value in subs_expr.items():
                             expr = sympy.simplify(expr.subs(key, value))
+
+                        expr = expr.replace(
+                            lambda e: e.is_Number and abs(e.evalf()) < self.eps,
+                            lambda e: 0
+                        )
 
                         if (expr in expressions):
                             return None
