@@ -31,7 +31,7 @@ def eval_binary_combination(args):
         else:
             expr_str = f"({expr1}){name}({expr2})"
 
-        sym_expr = sympy.sympify(expr_str)
+        sym_expr = sympy.factor(sympy.sympify(expr_str))
 
         for key, value in subs_expr.items():
             sym_expr = sympy.simplify(sym_expr.subs(key, value))
@@ -56,13 +56,29 @@ def eval_binary_combination(args):
                 except RuntimeError:
                     pass
 
-            sorted_model_losses, sorted_binary_model_params, sorted_models = zip(*sorted(zip(model_losses, binary_model_params, models)))
+            try:
+                sorted_model_losses, sorted_binary_model_params, sorted_models = zip(*sorted(zip(model_losses, binary_model_params, models)))
 
-            if (sorted_model_losses[0] < loss):
-                params = sorted_binary_model_params[0]
-                new_expr = sorted_models[0]((x1, x2), *params)
-                sym_expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
-                loss = sorted_model_losses[0]
+                if (sorted_model_losses[0] < loss):
+                    params = sorted_binary_model_params[0]
+                    expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
+
+                    expr = sympy.factor(sympy.sympify(expr))
+
+                    for key, value in subs_expr.items():
+                        expr = sympy.simplify(expr.subs(key, value))
+
+                    if (expr in expressions):
+                        return None
+
+                    coeffs = np.array([value for key, value in expr.as_coefficients_dict().items()], dtype=np.float64)
+
+                    if (np.linalg.norm(coeffs) > eps):
+                        sym_expr = expr
+                        new_expr = sorted_models[0]((x1, x2), *params)
+                        loss = sorted_model_losses[0]
+            except ValueError:
+                pass
 
         if (loss < eps):
             if (not sym_expr in avoided_expr):
@@ -186,13 +202,29 @@ class SR:
                     except RuntimeError:
                         pass
 
-                sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
+                try:
+                    sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
 
-                if (sorted_model_losses[0] < newLoss):
-                    params = sorted_unary_model_params[0]
-                    newx = sorted_unary_models[0](newx, *params)
-                    newExpr = sorted_unary_models[0](newExpr, *params)
-                    newLoss = sorted_model_losses[0]
+                    if (sorted_model_losses[0] < newLoss):
+                        params = sorted_binary_model_params[0]
+                        expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
+
+                        expr = sympy.factor(sympy.sympify(expr))
+
+                        for key, value in subs_expr.items():
+                            expr = sympy.simplify(expr.subs(key, value))
+
+                        if (expr in expressions):
+                            return None
+
+                        coeffs = np.array([value for key, value in expr.as_coefficients_dict().items()], dtype=np.float64)
+                        
+                        if (np.linalg.norm(coeffs) > eps):
+                            sym_expr = expr
+                            new_expr = sorted_models[0]((x1, x2), *params)
+                            loss = sorted_model_losses[0]
+                except ValueError:
+                    pass
 
             expressions[str(newExpr)] = (newx, newLoss)
 
