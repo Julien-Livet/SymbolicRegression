@@ -162,6 +162,8 @@ class SR:
 
         if (len(symbols) < len(default_symbols)):
             symbols += default_symbols[len(given_symbols) - len(default_symbols):]
+        elif (len(symbols) > len(X)):
+            symbols = symbols[:len(X)]
 
         expressions = {}
 
