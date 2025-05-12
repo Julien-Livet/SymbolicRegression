@@ -96,7 +96,7 @@ class Expr:
         self.value_params = np.array([1.0, 0.0])
         self.loss = math.inf
     
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev):
         modules = ['numpy']
         
         for name, op in unary_ops.items():
@@ -120,7 +120,7 @@ class Expr:
 
             for i in range(0, len(self.value_params)):
                 self.value_params[i] = round(self.value_params[i] / eps) * eps
-                
+
                 if (abs(self.value_params[i]) < eps):
                     self.value_params[i] = 0
                     
@@ -144,8 +144,9 @@ class Expr:
         self.opt_expr = self.sym_expr
         
         for i in range(0, len(self.symbol_params)):
-            self.opt_expr = self.opt_expr.subs(self.symbol_params[i], self.value_params[i])
-            
+            v = int(self.value_params[i]) if self.value_params[i] == int(self.value_params[i]) else self.value_params[i]
+            self.opt_expr = self.opt_expr.subs(self.symbol_params[i], v)
+
         self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
 
         for key, value in subs_expr.items():
@@ -255,13 +256,13 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, shared_finished = args
 
     if (shared_finished.value):
         return None
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
-    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops)
+    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev)
     s = str(new_expr.opt_expr)
     
     if (maxloss <= 0 or new_expr.loss <= maxloss):
@@ -294,7 +295,8 @@ class SR:
                  eps = 1e-6,
                  avoided_expr = [],
                  subs_expr = {},
-                 sort_by_loss = False):
+                 sort_by_loss = False,
+                 maxfev = 100):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -312,6 +314,7 @@ class SR:
         self.avoided_expr = avoided_expr
         self.subs_expr = subs_expr
         self.sort_by_loss = sort_by_loss
+        self.maxfev = maxfev
         
         assert(self.eps > 0)
 
@@ -345,7 +348,7 @@ class SR:
 
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
-            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators)
+            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators, self.maxfev)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         self.expressions = opt_exprs
@@ -382,7 +385,7 @@ class SR:
             for expr in exprs:
                 for name, unary_operator in self.unary_operators.items():
                     new_expr = expr.apply_unary_op(unary_operator)
-                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators)
+                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators, self.maxfev)
 
                     if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
                         if (not new_expr.opt_expr in self.avoided_expr):
@@ -436,7 +439,7 @@ class SR:
                                 tasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                               self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
                                               self.eps, self.avoided_expr, self.foundBreak, self.subs_expr,
-                                              self.unary_operators, self.binary_operators, shared_finished))
+                                              self.unary_operators, self.binary_operators, self.maxfev, shared_finished))
 
                 results = []
 
@@ -654,7 +657,8 @@ def testpysr():
                binary_operators = {"+": (operator.add, operator.add),
                                    "*": (operator.mul, operator.mul)},
                foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
+               symmetric_binary_operators = ["+", "*", "conv"],
+               verbose = True)
 
     model.predict(X, y)
 
