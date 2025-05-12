@@ -14,7 +14,7 @@ def split_list(lst, n):
 
     return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
-def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-9):
+def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-3):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
     for key, value in subs_expr.items():
@@ -60,6 +60,9 @@ def new_params(expr, symbols):
 
     poly = expr.as_poly(*symbols)
     degree = 0
+    cst = poly.coeff_monomial(1)
+
+    poly = poly - cst
 
     for s in symbols:
         degree = max(degree, poly.degree(s))
@@ -70,14 +73,35 @@ def new_params(expr, symbols):
 
     combined_symbols = list(combined_symbols)
 
-    terms = sympy.Poly(expr, combined_symbols).coeffs()
+    terms = []
 
-    for i in range(0, len(terms)):
-        new_symbol_params.append(newSymbol())
-        new_value_params.append(1.0)
-        terms[i] = new_symbol_params[-1]
+    if (expr - cst == 0):
+        terms = [0 for s in combined_symbols]
+    else:
+        p = sympy.Poly(expr - cst, combined_symbols)
+        term_dict = p.as_dict()
+        monomes = list(itertools.product(*[range(p.degree(v) + 1) for v in combined_symbols]))
+        del monomes[0]
+        
+        monomes_symboliques = [
+            sympy.Mul(*[var**exp for var, exp in zip(combined_symbols, exposants)])
+            for exposants in monomes
+        ]
+        
+        terms = [term_dict.get(exp, 0) for exp in monomes]
+        
+        for i in range(0, len(terms)):
+            if (terms[i]):
+                new_symbol_params.append(newSymbol())
+                new_value_params.append(1.0)
+                terms[i] = new_symbol_params[-1]
+        
+        combined_symbols = monomes_symboliques
 
     combined_symbols.append(1)
+    new_symbol_params.append(newSymbol())
+    new_value_params.append(1.0)
+    terms.append(new_symbol_params[-1])
 
     expr = sum(c * m for c, m in zip(terms, combined_symbols))
 
@@ -163,9 +187,9 @@ class Expr:
         
         a = newSymbol()
         b = newSymbol()
-        
+
         expr.sym_expr = a * sym_op(expr.sym_expr) + b
-        expr.symbol_params += [a, b]
+        expr.symbol_params = list(expr.symbol_params) + [a, b]
         expr.value_params = list(expr.value_params) + list(np.array([1.0, 0.0]))
 
         expr.simplify()
@@ -187,6 +211,7 @@ class Expr:
             other_sym_expr = other_sym_expr.subs(other_expr.symbol_params[i], symbol_params[-1])
 
         expr.sym_expr = a * sym_op(expr.sym_expr, other_sym_expr) + b
+
         expr.symbol_vars += other_expr.symbol_vars
         expr.value_vars += other_expr.value_vars
 
@@ -212,8 +237,8 @@ class Expr:
     def simplify(self):
         sym_expr = sympy.expand(self.sym_expr)
 
-        new_symbol_params = []
-        new_value_params = []
+        new_symbol_params = self.symbol_params
+        new_value_params = self.value_params
         replacements = {}
 
         symbols = set(copy.deepcopy(self.symbol_vars))
@@ -221,23 +246,16 @@ class Expr:
 
         for node in sympy.preorder_traversal(sym_expr):
             if (isinstance(node, sympy.Function)):
-                new_args = []
-                
-                for arg in node.args:
-                    n_p = new_params(arg, symbols)
-                    new_symbol_params += n_p[0]
-                    new_value_params += n_p[1]
-                    new_args.append(str(n_p[2]))
-
-                symbols.add(sympy.Symbol(str(node.func)))
-                replaced_symbols[sympy.Symbol(str(node.func))] = str(node.func) + "(" + ", ".join(new_args) + ")"
-                replacements[node] = newSymbol()
+                symbol = newSymbol()
+                symbols.add(symbol)
+                replaced_symbols[symbol] = str(node.func) + "(" + ", ".join([str(x) for x in node.args]) + ")"
+                replacements[node] = symbol
 
         symbols = list(symbols)
 
         n_p = new_params(sym_expr.xreplace(replacements), symbols)
-        new_symbol_params += n_p[0]
-        new_value_params += n_p[1]
+        new_symbol_params = n_p[0]
+        new_value_params = n_p[1]
 
         for k, v in replaced_symbols.items():
             try:
@@ -246,10 +264,10 @@ class Expr:
                 pass
 
         self.sym_expr = n_p[2]
-        
+
         for key, value in replaced_symbols.items():
             self.sym_expr = self.sym_expr.subs(key, value)
-        
+
         self.symbol_params = new_symbol_params
         self.value_params = np.array(new_value_params)
 
@@ -292,7 +310,7 @@ class SR:
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
-                 eps = 1e-6,
+                 eps = 1e-3,
                  avoided_expr = [],
                  subs_expr = {},
                  sort_by_loss = False,
@@ -382,8 +400,8 @@ class SR:
 
             newExprs = []
 
-            for expr in exprs:
-                for name, unary_operator in self.unary_operators.items():
+            for name, unary_operator in self.unary_operators.items():
+                for expr in exprs:
                     new_expr = expr.apply_unary_op(unary_operator)
                     new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators, self.maxfev)
 
@@ -402,14 +420,15 @@ class SR:
                 
                 if (finished):
                     break
+            
+            if (len(self.unary_operators)):
+                if (self.discard_previous_expr):
+                    exprs = newExprs
+                else:
+                    exprs += newExprs
 
-            if (self.discard_previous_expr):
-                exprs = newExprs
-            else:
-                exprs += newExprs
-
-            if (self.sort_by_loss):
-                exprs = sorted(exprs, key=lambda x: x.loss)
+                if (self.sort_by_loss):
+                    exprs = sorted(exprs, key=lambda x: x.loss)
 
             newExprs = []
 
@@ -444,10 +463,10 @@ class SR:
                 results = []
 
                 #with Pool(processes = cpu_count()) as pool:
-                with Pool() as pool:
-                    results = pool.map(eval_binary_combination, tasks)
-                #for t in tasks:
-                #    results.append(eval_binary_combination(t))
+                #with Pool() as pool:
+                #    results = pool.map(eval_binary_combination, tasks)
+                for t in tasks:
+                    results.append(eval_binary_combination(t))
 
                 finished = shared_finished.value
 
@@ -491,84 +510,8 @@ class SR:
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
 
-def test1():
-    model = SR(niterations = 5,
-               unary_operators = {"-": (operator.neg, operator.neg)},
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "-": (operator.sub, operator.sub),
-                                   "*": (operator.mul, operator.mul)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-    #unary_operators = {"-": operator.neg,
-    #                   "abs": (sympy.Abs, operator.abs),
-    #                   "inv": (lambda x: 1 / x, lambda x: 1 / x),
-    #                   "sqrt": (sympy.sqrt, np.sqrt),
-    #                   "cos": (sympy.cos, np.cos),
-    #                   "sin": (sympy.sin, np.sin),
-    #                   "log": (sympy.log, np.log),
-    #                   "exp": (sympy.exp, np.exp)}
-    #binary_operators = {"+": (operator.add, operator.add),
-    #                    "-": (operator.sub, operator.sub)
-    #                    "*": (operator.mul, operator.mul),
-    #                    "/": (operator.truediv, operator.truediv),
-    #                    "//": (operator.floordiv, operator.floordiv),
-    #                    "%": (operator.mod, operator.mod),
-    #                    "conv": (sympy.Function("conv"), convolve),
-    #                    "**": (sympy.Pow, operator.pow}
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = x1 * x2
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test2():
-    model = SR(niterations = 5,
-               unary_operators = {"-": (operator.neg, operator.neg)},
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "-": (operator.sub, operator.sub),
-                                   "*": (operator.mul, operator.mul)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = x1 + x2
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test3():
-    model = SR(niterations = 5,
-               unary_operators = {"-": (operator.neg, operator.neg)},
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "-": (operator.sub, operator.sub),
-                                   "*": (operator.mul, operator.mul)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = (x1 - x2) ** 2 + x1 * x2
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
 def test4():
-    model = SR(niterations = 5,
+    model = SR(niterations = 3,
                binary_operators = {"-": (operator.sub, operator.sub), 
                                    "conv": (sympy.Function("conv"), convolve)},
                foundBreak = True,
@@ -579,50 +522,6 @@ def test4():
     x2 = np.random.rand(n)
     X = [x1, x2]
     y = convolve(x1, x2) - x1
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test5():
-    model = SR(niterations = 5,
-               binary_operators = {"+": (operator.add, operator.add)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    a = random.random()
-    b = random.random()
-    y = a * x1 + b
-    print("a", a)
-    print("b", b)
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test6():
-    model = SR(niterations = 5,
-               binary_operators = {"+": (operator.add, operator.add)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    a = random.random()
-    b = random.random()
-    c = random.random()
-    y = a * x1 + b * x2 + c
-    print("a", a)
-    print("b", b)
-    print("c", c)
 
     model.predict(X, y, ["x1", "x2"])
 
@@ -647,34 +546,3 @@ def test7():
 
     print("Model found in " + str(model.lastIteration + 1) + " iterations")
     print(model.bestExpressions)
-
-def testpysr():
-    X = 2 * np.random.randn(5, 100)
-    y = 2.5382 * np.cos(X[3, :]) + X[0, :] ** 2 - 0.5
-
-    model = SR(niterations = 10,
-               unary_operators = {"cos": (sympy.cos, np.cos)},
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "*": (operator.mul, operator.mul)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"],
-               verbose = True)
-
-    model.predict(X, y)
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-if (__name__ == "__main__"):
-    import multiprocessing
-
-    multiprocessing.freeze_support()
-
-    test1()
-    test2()
-    test3()
-    test4()
-    test5()
-    test6()
-    test7()
-    testpysr()
