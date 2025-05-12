@@ -37,7 +37,7 @@ def test_x1_mul_x2():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(model.bestExpressions[0] == sympy.sympify("x1*x2"))
+    assert(model.bestExpressions[0][0] == sympy.sympify("x1*x2"))
 
 def test_x1_add_x2():
     model = sr.SR(niterations = 3,
@@ -56,7 +56,7 @@ def test_x1_add_x2():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(model.bestExpressions[0] == sympy.sympify("x1+x2"))
+    assert(model.bestExpressions[0][0] == sympy.sympify("x1+x2"))
 
 def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model = sr.SR(niterations = 3,
@@ -74,7 +74,7 @@ def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sympy.expand(model.bestExpressions[0]) == sympy.expand(sympy.sympify("(x1-x2)**2+x1*x2")))
+    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.sympify("(x1-x2)**2+x1*x2")))
 
 def test_a_mul_x1_add_b():
     model = sr.SR(niterations = 3,
@@ -93,7 +93,7 @@ def test_a_mul_x1_add_b():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(model.bestExpressions[0], sympy.sympify(str(a) + "*x1+" + str(b))))
+    assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify(str(a) + "*x1+" + str(b))))
 
 def test_a_mul_x2_add_b_mul_x2_add_c():
     model = sr.SR(niterations = 3,
@@ -113,13 +113,13 @@ def test_a_mul_x2_add_b_mul_x2_add_c():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(model.bestExpressions[0], sympy.sympify(str(a) + "*x1+" + str(b) + "*x2+" + str(c))))
+    assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify(str(a) + "*x1+" + str(b) + "*x2+" + str(c))))
 
 def test_pysr():
     X = 2 * np.random.randn(5, 100)
     y = 2.5382 * np.cos(X[3, :]) + X[0, :] ** 2 - 0.5
 
-    model = sr.SR(niterations = 5,
+    model = sr.SR(niterations = 3,
                   unary_operators = {"cos": (sympy.cos, np.cos)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
@@ -129,4 +129,4 @@ def test_pysr():
     model.predict(X, y)
 
     assert(len(model.bestExpressions) == 1)
-    assert(model.bestExpressions[0] == sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5"))
+    assert(model.bestExpressions[0][0] == sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5"))

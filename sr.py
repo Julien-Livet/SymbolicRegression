@@ -14,7 +14,7 @@ def split_list(lst, n):
 
     return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
-def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-3):
+def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-5):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
     for key, value in subs_expr.items():
@@ -72,6 +72,7 @@ def new_params(expr, symbols):
             combined_symbols.add(sympy.Mul(*sorted(comb, key=str)))
 
     combined_symbols = list(combined_symbols)
+    replacements = {}
 
     terms = []
 
@@ -94,6 +95,7 @@ def new_params(expr, symbols):
             if (terms[i]):
                 new_symbol_params.append(newSymbol())
                 new_value_params.append(1.0)
+                replacements[terms[i]] = new_symbol_params[-1]
                 terms[i] = new_symbol_params[-1]
         
         combined_symbols = monomes_symboliques
@@ -102,10 +104,11 @@ def new_params(expr, symbols):
     new_symbol_params.append(newSymbol())
     new_value_params.append(1.0)
     terms.append(new_symbol_params[-1])
+    replacements[cst] = new_symbol_params[-1]
 
     expr = sum(c * m for c, m in zip(terms, combined_symbols))
 
-    return (new_symbol_params, new_value_params, expr)
+    return (new_symbol_params, new_value_params, expr, replacements)
 
 class Expr:
     def __init__(self, symbol_var, value_var):
@@ -254,6 +257,10 @@ class Expr:
         symbols = list(symbols)
 
         n_p = new_params(sym_expr.xreplace(replacements), symbols)
+        
+        original_symbol_params = new_symbol_params
+        original_value_params = new_value_params
+        
         new_symbol_params = n_p[0]
         new_value_params = n_p[1]
 
@@ -264,12 +271,28 @@ class Expr:
                 pass
 
         self.sym_expr = n_p[2]
+        replacements = n_p[3]
 
         for key, value in replaced_symbols.items():
             self.sym_expr = self.sym_expr.subs(key, value)
 
         self.symbol_params = new_symbol_params
         self.value_params = np.array(new_value_params)
+        
+        for k, v in replacements.items():
+            try:
+                i = original_symbol_params.index(k)
+                del original_symbol_params[i]
+                del original_value_params[i]
+            except ValueError:
+                pass
+
+        free_symbols = self.sym_expr.free_symbols
+
+        for i in range(0, len(original_symbol_params)):
+            if (original_symbol_params[i] in free_symbols):
+                self.symbol_params.append(original_symbol_params[i])
+                self.value_params = np.array(list(self.value_params) + [original_value_params[i]])
 
         return self
 
@@ -310,7 +333,7 @@ class SR:
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
-                 eps = 1e-3,
+                 eps = 1e-5,
                  avoided_expr = [],
                  subs_expr = {},
                  sort_by_loss = False,
@@ -383,7 +406,7 @@ class SR:
             expr = sympy.simplify(sortedOpt_exprs[i])
             
             if (not expr in self.avoided_expr):
-                self.bestExpressions.append(expr)
+                self.bestExpressions.append((expr, sortedLosses[i]))
 
         if (len(self.bestExpressions)):
             return
@@ -463,10 +486,10 @@ class SR:
                 results = []
 
                 #with Pool(processes = cpu_count()) as pool:
-                #with Pool() as pool:
-                #    results = pool.map(eval_binary_combination, tasks)
-                for t in tasks:
-                    results.append(eval_binary_combination(t))
+                with Pool() as pool:
+                    results = pool.map(eval_binary_combination, tasks)
+                #for t in tasks:
+                #    results.append(eval_binary_combination(t))
 
                 finished = shared_finished.value
 
@@ -502,10 +525,10 @@ class SR:
             expr = sympy.simplify(sortedOpt_exprs[i])
             
             if (not expr in self.avoided_expr):
-                self.bestExpressions.append(expr)
+                self.bestExpressions.append((expr, sortedLosses[i]))
 
         if (len(self.bestExpressions) == 0):
-            self.bestExpressions = [sympy.simplify(sortedOpt_exprs[0])]
+            self.bestExpressions = [sympy.simplify(sortedOpt_exprs[0], sortedLosses[0])]
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
