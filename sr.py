@@ -1,15 +1,18 @@
-from multiprocessing import cpu_count, Manager, Pool
+import copy
+import itertools
+import math
+from multiprocessing import cpu_count, Manager#, Pool
+from multiprocessing.dummy import Pool
 import numpy as np
 import operator
 import random
 from scipy.optimize import curve_fit
 import sympy
 
-def split_dict_equally(d, n):
-    items = list(d.items())
-    chunk_size = (len(items) + n - 1) // n
+def split_list(lst, n):
+    k, m = divmod(len(lst), n)
 
-    return [dict(items[i*chunk_size:(i+1)*chunk_size]) for i in range(n)]
+    return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-9):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
@@ -29,118 +32,249 @@ def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-9):
 def sign(num):
     return -1 if num < 0 else 1
 
+symbolIndex = 0
+
+def newSymbol():
+    global symbolIndex
+
+    s = sympy.Symbol("_" + str(symbolIndex))
+    
+    symbolIndex += 1
+    
+    return s
+
+def mse_loss(x, y):
+    return np.sum((x - y) ** 2)
+
+def model_func(func):
+    def model(x, *args):
+        return np.array(func(*x, *args))
+
+    return model
+
+def new_params(expr, symbols):
+    new_symbol_params = []
+    new_value_params = []
+
+    combined_symbols = set()
+
+    poly = expr.as_poly(*symbols)
+    degree = 0
+
+    for s in symbols:
+        degree = max(degree, poly.degree(s))
+
+    for d in range(1, degree + 1):
+        for comb in itertools.combinations_with_replacement(symbols, d):
+            combined_symbols.add(sympy.Mul(*sorted(comb, key=str)))
+
+    combined_symbols = list(combined_symbols)
+
+    terms = sympy.Poly(expr, combined_symbols).coeffs()
+
+    for i in range(0, len(terms)):
+        new_symbol_params.append(newSymbol())
+        new_value_params.append(1.0)
+        terms[i] = new_symbol_params[-1]
+
+    combined_symbols.append(1)
+
+    expr = sum(c * m for c, m in zip(terms, combined_symbols))
+
+    return (new_symbol_params, new_value_params, expr)
+
+class Expr:
+    def __init__(self, symbol_var, value_var):
+        a = newSymbol()
+        b = newSymbol()
+        
+        self.opt_expr = ""
+        self.sym_expr = a * symbol_var + b
+        self.symbol_vars = [symbol_var]
+        self.value_vars = [value_var]
+        self.symbol_params = [a, b]
+        self.value_params = np.array([1.0, 0.0])
+        self.loss = math.inf
+    
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops):
+        modules = ['numpy']
+        
+        for name, op in unary_ops.items():
+            sym_op, num_op = op
+            
+            if (type(sym_op) == sympy.Function):
+                modules.append({str(sym_op): num_op})
+        
+        for name, op in binary_ops.items():
+            sym_op, num_op = op
+            
+            if (type(sym_op) == sympy.core.function.UndefinedFunction):
+                modules.append({str(sym_op): num_op})
+
+        f = sympy.lambdify(self.symbol_vars + self.symbol_params, self.sym_expr, modules = modules)
+        func = model_func(f)
+
+        try:
+            p0 = [float(x) for x in self.value_params]
+            self.value_params, _ = curve_fit(func, self.value_vars, y, p0 = p0)
+
+            for i in range(0, len(self.value_params)):
+                self.value_params[i] = round(self.value_params[i] / eps) * eps
+                
+                if (abs(self.value_params[i]) < eps):
+                    self.value_params[i] = 0
+                    
+            norm = np.linalg.norm(self.value_params)
+            
+            if (norm > eps):
+                p = self.value_params / norm
+
+                for i in range(0, len(p)):
+                    if (abs(abs(p[i]) - 1) < eps):
+                        p[i] = sign(p[i])
+
+                self.value_params = norm * p
+            else:
+                self.value_params *= 0
+        except RuntimeError:
+            pass
+
+        y_pred = func(self.value_vars, *self.value_params)
+        self.loss = loss_func(y_pred, y)
+        self.opt_expr = self.sym_expr
+        
+        for i in range(0, len(self.symbol_params)):
+            self.opt_expr = self.opt_expr.subs(self.symbol_params[i], self.value_params[i])
+            
+        self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
+
+        for key, value in subs_expr.items():
+            self.opt_expr = sympy.simplify(self.opt_expr.subs(key, value))
+
+        self.opt_expr = self.opt_expr.replace(
+            lambda e: e.is_Number and abs(e.evalf()) < eps,
+            lambda e: 0
+        )
+
+    def apply_unary_op(self, unary_sym_num_op):
+        expr = copy.deepcopy(self)
+        sym_op, num_op = unary_sym_num_op
+        
+        a = newSymbol()
+        b = newSymbol()
+        
+        expr.sym_expr = a * sym_op(expr.sym_expr) + b
+        expr.symbol_params += [a, b]
+        expr.value_params = list(expr.value_params) + list(np.array([1.0, 0.0]))
+
+        expr.simplify()
+
+        return expr
+
+    def apply_binary_op(self, binary_sym_num_op, other_expr):
+        expr = copy.deepcopy(self)
+        sym_op, num_op = binary_sym_num_op
+        
+        a = newSymbol()
+        b = newSymbol()
+
+        symbol_params = []
+        other_sym_expr = other_expr.sym_expr
+
+        for i in range(0, len(other_expr.symbol_params)):
+            symbol_params.append(newSymbol())
+            other_sym_expr = other_sym_expr.subs(other_expr.symbol_params[i], symbol_params[-1])
+
+        expr.sym_expr = a * sym_op(expr.sym_expr, other_sym_expr) + b
+        expr.symbol_vars += other_expr.symbol_vars
+        expr.value_vars += other_expr.value_vars
+
+        seen = set()
+        unique_symbols = []
+        unique_values = []
+
+        for sym, val in zip(expr.symbol_vars, expr.value_vars):
+            if (sym not in seen):
+                seen.add(sym)
+                unique_symbols.append(sym)
+                unique_values.append(val)
+        
+        expr.symbol_vars = unique_symbols
+        expr.value_vars = unique_values
+        expr.symbol_params += symbol_params + [a, b]
+        expr.value_params = list(expr.value_params) + list(other_expr.value_params) + list(np.array([1.0, 0.0]))
+
+        expr.simplify()
+
+        return expr
+
+    def simplify(self):
+        sym_expr = sympy.expand(self.sym_expr)
+
+        new_symbol_params = []
+        new_value_params = []
+        replacements = {}
+
+        symbols = set(copy.deepcopy(self.symbol_vars))
+        replaced_symbols = {}
+
+        for node in sympy.preorder_traversal(sym_expr):
+            if (isinstance(node, sympy.Function)):
+                new_args = []
+                
+                for arg in node.args:
+                    n_p = new_params(arg, symbols)
+                    new_symbol_params += n_p[0]
+                    new_value_params += n_p[1]
+                    new_args.append(str(n_p[2]))
+
+                symbols.add(sympy.Symbol(str(node.func)))
+                replaced_symbols[sympy.Symbol(str(node.func))] = str(node.func) + "(" + ", ".join(new_args) + ")"
+                replacements[node] = newSymbol()
+
+        symbols = list(symbols)
+
+        n_p = new_params(sym_expr.xreplace(replacements), symbols)
+        new_symbol_params += n_p[0]
+        new_value_params += n_p[1]
+
+        for k, v in replaced_symbols.items():
+            try:
+                del new_symbol_params[new_symbol_params.index(k)]
+            except ValueError:
+                pass
+
+        self.sym_expr = n_p[2]
+        
+        for key, value in replaced_symbols.items():
+            self.sym_expr = self.sym_expr.subs(key, value)
+        
+        self.symbol_params = new_symbol_params
+        self.value_params = np.array(new_value_params)
+
+        return self
+
 def eval_binary_combination(args):
-    key1, key2, name, expressions, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, binary_models, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, shared_finished = args
 
     if (shared_finished.value):
         return None
 
-    expr1, expr2 = key1, key2
-    value1, value2 = expressions[expr1], expressions[expr2]
-    x1, loss1 = value1
-    x2, loss2 = value2
-
-    try:
-        new_expr = binary_operator(x1, x2)
-        
-        if (name.isalnum()):
-            expr_str = f"{name}({expr1}, {expr2})"
-        else:
-            expr_str = f"({expr1}){name}({expr2})"
-
-        sym_expr = sympy.factor(sympy.sympify(expr_str))
-
-        for key, value in subs_expr.items():
-            sym_expr = sympy.simplify(sym_expr.subs(key, value))
-
-        if (sym_expr in expressions):
-            return None
-
-        loss = loss_func(new_expr, y)
-
-        if (len(binary_models)):
-            binary_model_params = []
-            model_losses = []
-            models = []
-
-            for model in binary_models:
-                try:
-                    models.append(model(binary_operator))
-                    params, _ = curve_fit(models[-1], (x1, x2), y)
-                    binary_model_params.append(params)
-                    y_pred = models[-1]((x1, x2), *params)
-                    model_losses.append(loss_func(y_pred, y))
-                except RuntimeError:
-                    pass
-
-            try:
-                sorted_model_losses, sorted_binary_model_params, sorted_models = zip(*sorted(zip(model_losses, binary_model_params, models)))
-
-                if (sorted_model_losses[0] < loss):
-                    params = np.array(sorted_binary_model_params[0])
-                    norm = np.linalg.norm(params)
-                    if (norm > eps):
-                        p = params / norm
-                        for i in range(0, len(p)):
-                            if (abs(abs(p) - 1) < eps):
-                                p[i] = sign(p)
-                        params = norm * p
-                    expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
-
-                    expr = sympy.factor(sympy.sympify(expr))
-
-                    for key, value in subs_expr.items():
-                        expr = sympy.simplify(expr.subs(key, value))
-
-                    expr = expr.replace(
-                        lambda e: e.is_Number and abs(e.evalf()) < eps,
-                        lambda e: 0
-                    )
-
-                    if (expr in expressions):
-                        return None
-
-                    coeffs = np.array([value for key, value in expr.as_coefficients_dict().items()], dtype=np.float64)
-
-                    if (np.linalg.norm(coeffs) > eps):
-                        sym_expr = expr
-                        new_expr = sorted_models[0]((x1, x2), *params)
-                        loss = sorted_model_losses[0]
-            except ValueError:
-                pass
-
-        if (loss < eps):
-            if (not sym_expr in avoided_expr):
+    new_expr = expr1.apply_binary_op(binary_operator, expr2)
+    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops)
+    s = str(new_expr.opt_expr)
+    
+    if (maxloss <= 0 or new_expr.loss <= maxloss):
+        if (not new_expr.opt_expr in avoided_expr):
+            if (new_expr.loss < eps and foundBreak):
                 if (verbose):
-                    print("Found expression:", sym_expr)
+                    print("Found expression:", str(new_expr.opt_expr))
 
-                if (foundBreak):
-                    shared_finished.value = True
-        else:
-            if (sym_expr in avoided_expr):
-                return None
+                shared_finished.value = True
 
-            loss += loss1 + loss2
+            return new_expr
 
-        if (maxloss > 0 and loss > maxloss) or (maxsymbols > 0 and len(sym_expr.free_symbols) > maxsymbols):
-            return None
-
-        return (str(sym_expr), new_expr, loss)
-    except Exception:
-        return None
-
-def unary_linear_model(x, a, b):
-    return a * x + b
-
-def binary_linear_model(func):
-    def model(xdata, a, b, c, d):
-        x1, x2 = xdata
-        return a * func(b * x1, c * x2) + d
-
-    return model
-
-def mse_loss(x, y):
-    return np.sum((x - y) ** 2)
+    return None
 
 class SR:
     def __init__(self,
@@ -160,8 +294,6 @@ class SR:
                  eps = 1e-6,
                  avoided_expr = [],
                  subs_expr = {},
-                 unary_models = [],
-                 binary_models = [],
                  sort_by_loss = False):
         self.niterations = niterations
         self.unary_operators = unary_operators
@@ -179,8 +311,6 @@ class SR:
         self.eps = eps
         self.avoided_expr = avoided_expr
         self.subs_expr = subs_expr
-        self.unary_models = unary_models
-        self.binary_models = binary_models
         self.sort_by_loss = sort_by_loss
         
         assert(self.eps > 0)
@@ -210,67 +340,18 @@ class SR:
         elif (len(symbols) > len(X)):
             symbols = symbols[:len(X)]
 
-        expressions = {}
+        exprs = []
+        opt_exprs = {}
 
         for i in range(0, len(symbols)):
-            newExpr = symbols[i]
+            exprs.append(Expr(symbols[i], X[i]))
+            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators)
+            opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
-            newLoss = self.elementwise_loss(X[i], y)
-            newx = X[i]
+        self.expressions = opt_exprs
 
-            if (len(self.unary_models)):
-                unary_model_params = []
-                model_losses = []
-
-                for model in self.unary_models:
-                    try:
-                        params, _ = curve_fit(model, newx, y)
-                        unary_model_params.append(params)
-                        y_pred = model(newx, *params)
-                        model_losses.append(self.elementwise_loss(y_pred, y))
-                    except RuntimeError:
-                        pass
-
-                try:
-                    sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
-
-                    if (sorted_model_losses[0] < newLoss):
-                        params = np.array(sorted_binary_model_params[0])
-                        norm = np.linalg.norm(params)
-                        if (norm > eps):
-                            p = params / norm
-                            for i in range(0, len(p)):
-                                if (abs(abs(p) - 1) < eps):
-                                    p[i] = sign(p)
-                            params = norm * p
-                        expr = sorted_models[0]((sympy.sympify(expr1), sympy.sympify(expr2)), *params)
-
-                        expr = sympy.factor(sympy.sympify(expr))
-
-                        for key, value in subs_expr.items():
-                            expr = sympy.simplify(expr.subs(key, value))
-
-                        expr = expr.replace(
-                            lambda e: e.is_Number and abs(e.evalf()) < self.eps,
-                            lambda e: 0
-                        )
-
-                        if (expr in expressions):
-                            return None
-
-                        coeffs = np.array([value for key, value in expr.as_coefficients_dict().items()], dtype=np.float64)
-                        
-                        if (np.linalg.norm(coeffs) > eps):
-                            sym_expr = expr
-                            new_expr = sorted_models[0]((x1, x2), *params)
-                            loss = sorted_model_losses[0]
-                except ValueError:
-                    pass
-
-            expressions[str(newExpr)] = (newx, newLoss)
-
-        losses = [value[1] for key, value in expressions.items()]
-        sortedLosses, sortedExpressions = zip(*sorted(zip(losses, [str(x) for x in expressions.keys()])))
+        losses = [value for key, value in opt_exprs.items()]
+        sortedLosses, sortedOpt_exprs = zip(*sorted(zip(losses, list(opt_exprs.keys()))))
 
         self.bestExpressions = []
 
@@ -278,7 +359,7 @@ class SR:
             if (sortedLosses[i] >= self.eps):
                 break
 
-            expr = sympy.simplify(sortedExpressions[i])
+            expr = sympy.simplify(sortedOpt_exprs[i])
             
             if (not expr in self.avoided_expr):
                 self.bestExpressions.append(expr)
@@ -292,138 +373,103 @@ class SR:
             if (self.verbose):
                 print("Iteration #" + str(j))
 
-            keys = list(expressions.keys())
-
             self.lastIteration = j
 
             finished = False
 
-            newExpressions = {}
+            newExprs = []
 
-            for key, value in expressions.items():
-                x, loss = value
-                
+            for expr in exprs:
                 for name, unary_operator in self.unary_operators.items():
-                    newExpr = sympy.sympify(name + "(" + str(key) + ")")
-                    
-                    if (not newExpr in expressions):
-                        newx = unary_operator(x)
+                    new_expr = expr.apply_unary_op(unary_operator)
+                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators)
 
-                        newLoss = self.elementwise_loss(newx, y)
-
-                        if (len(self.unary_models)):
-                            unary_model_params = []
-                            model_losses = []
-
-                            for model in self.unary_models:
-                                try:
-                                    params, _ = curve_fit(model, newx, y)
-                                    unary_model_params.append(params)
-                                    y_pred = model(newx, *params)
-                                    model_losses.append(self.elementwise_loss(newx, y))
-                                except RuntimeError:
-                                    pass
+                    if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
+                        if (not new_expr.opt_expr in self.avoided_expr):
+                            newExprs.append(new_expr)
+                            opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
                             
-                            sorted_model_losses, sorted_unary_model_params, sorted_unary_models = zip(*sorted(zip(model_losses, unary_model_params, self.unary_models)))
+                            if (new_expr.loss < self.eps):
+                                if (verbose):
+                                    print("Found expression:", str(new_expr.opt_expr))
 
-                            if (sorted_model_losses[0] < newLoss):
-                                newx = sorted_unary_models(newx, *sorted_unary_model_params[0])
-                                newExpr = sorted_unary_models(newExpr, *sorted_unary_model_params[0])
-                                newLoss = sorted_model_losses[0]
+                                if (self.foundBreak):
+                                    finished = True
+                                    break
+                
+                if (finished):
+                    break
 
-                        expr = sympy.simplify(newExpr)
-                        
-                        for key, value in self.subs_expr.items():
-                            expr = sympy.simplify(expr.subs(key, value))
-
-                        if (loss < self.eps and not expr in self.avoided_expr):
-                            if (self.verbose):
-                                print("Found expression:", expr)
-
-                            if (self.foundBreak):
-                                finished = True
-                                break
-
-                        newLoss += loss
-
-                        if ((self.maxloss <= 0 or newLoss <= self.maxloss)
-                            and not expr in self.avoided_expr):
-                            newExpressions[str(expr)] = (newx, newLoss)
-
-            expressions = {**expressions, **newExpressions}
+            if (self.discard_previous_expr):
+                exprs = newExprs
+            else:
+                exprs += newExprs
 
             if (self.sort_by_loss):
-                expressions = dict(sorted(expressions.items(), key=lambda item: item[1][1]))
+                exprs = sorted(exprs, key=lambda x: x.loss)
 
-            newExpressions = {}
+            newExprs = []
 
             if (finished):
                 break
 
             tasks = []
-            groups = split_dict_equally(expressions, len(expressions) // self.group_expr_size + 1) if self.group_expr_size > 0 else [expressions]
+            groups = split_list(exprs, len(exprs) // self.group_expr_size + 1) if self.group_expr_size > 0 else [exprs]
 
             with Manager() as manager:
                 shared_finished = manager.Value('b', False)
                 
                 for name, binary_operator in self.binary_operators.items():
                     for group in groups:
-                        keys = list(group.keys())
-
-                        indices1 = list(range(0, len(keys)))
+                        indices1 = list(range(0, len(group)))
 
                         if (self.shuffle_indices):
                             random.shuffle(indices1)
 
                         for i1 in indices1:
-                            indices2 = list(range(i1 if name in self.symmetric_binary_operators else 0, len(keys)))
+                            indices2 = list(range(i1 if name in self.symmetric_binary_operators else 0, len(group)))
 
                             if (self.shuffle_indices):
                                 random.shuffle(indices2)
 
                             for i2 in indices2:
-                                tasks.append((keys[i1], keys[i2], name, expressions, binary_operator, y,
+                                tasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                               self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
                                               self.eps, self.avoided_expr, self.foundBreak, self.subs_expr,
-                                              self.binary_models, shared_finished))
+                                              self.unary_operators, self.binary_operators, shared_finished))
 
-                with Pool(processes = cpu_count()) as pool:
+                results = []
+
+                #with Pool(processes = cpu_count()) as pool:
+                with Pool() as pool:
                     results = pool.map(eval_binary_combination, tasks)
+                #for t in tasks:
+                #    results.append(eval_binary_combination(t))
 
                 finished = shared_finished.value
 
             for res in results:
                 if (res is not None):
-                    expr = sympy.simplify(res[0])
-                    
-                    newExpressions[str(expr)] = (res[1], res[2])
-
-                    if (res[2] < self.eps and not expr in self.avoided_expr):
-                        if (self.foundBreak):
-                            finished = True
-                            break
+                    newExprs.append(res)
+                    opt_exprs[str(res.opt_expr)] = res.loss
 
             if (self.discard_previous_expr):
-                self.expressions += expressions.keys()
-                expressions = {}
-
-            expressions = {**expressions, **newExpressions}
+                exprs = newExprs
+            else:
+                exprs += newExprs
 
             if (self.sort_by_loss):
-                expressions = dict(sorted(expressions.items(), key=lambda item: item[1][1]))
+                exprs = sorted(exprs, key=lambda x: x.loss)
 
-            if (self.maxexpr > 0):
-                while (len(expressions) > self.maxexpr):
-                    del expressions[list(expressions.keys())[0]]
-                    #del expressions[list(expressions.keys())[-1]]
+            if (self.maxexpr > 0 and len(exprs) > self.maxexpr):
+                exprs = exprs[:self.maxexpr]
+                #exprs = exprs[len(exprs)-self.maxexpr:]
 
             if (finished):
                 break
 
-        losses = [value[1] for key, value in expressions.items()]
-        sortedLosses, sortedExpressions = zip(*sorted(zip(losses, [str(x) for x in expressions.keys()])))
-
-        self.expressions += expressions
+        losses = [value for key, value in opt_exprs.items()]
+        sortedLosses, sortedOpt_exprs = zip(*sorted(zip(losses, list(opt_exprs.keys()))))
 
         self.bestExpressions = []
 
@@ -431,35 +477,41 @@ class SR:
             if (sortedLosses[i] >= self.eps):
                 break
 
-            expr = sympy.simplify(sortedExpressions[i])
+            expr = sympy.simplify(sortedOpt_exprs[i])
             
             if (not expr in self.avoided_expr):
                 self.bestExpressions.append(expr)
 
         if (len(self.bestExpressions) == 0):
-            self.bestExpressions = [sympy.simplify(self.expressions[0])]
+            self.bestExpressions = [sympy.simplify(sortedOpt_exprs[0])]
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
 
 def test1():
     model = SR(niterations = 5,
-               unary_operators = {"-": operator.neg},
-               binary_operators = {"+": operator.add, "-": operator.sub, "*": operator.mul},
+               unary_operators = {"-": (operator.neg, operator.neg)},
+               binary_operators = {"+": (operator.add, operator.add),
+                                   "-": (operator.sub, operator.sub),
+                                   "*": (operator.mul, operator.mul)},
                foundBreak = True,
                symmetric_binary_operators = ["+", "*", "conv"])
-    #unary_operators = {"-": operator.neg, "abs": operator.abs,
-    #                   "inv": lambda x: 1 / x,
-    #                   "sqrt": np.sqrt,
-    #                   "cos": np.cos,
-    #                   "sin": np.sin,
-    #                   "ln": np.log,
-    #                   "exp": np.exp,}
-    #binary_operators = {"+": operator.add, "-": operator.sub,
-    #                    "*": operator.mul, "/": operator.truediv, "//": operator.floordiv,
-    #                    "%": operator.mod,
-    #                    "conv": convolve,
-    #                    "**": operator.pow}
+    #unary_operators = {"-": operator.neg,
+    #                   "abs": (sympy.Abs, operator.abs),
+    #                   "inv": (lambda x: 1 / x, lambda x: 1 / x),
+    #                   "sqrt": (sympy.sqrt, np.sqrt),
+    #                   "cos": (sympy.cos, np.cos),
+    #                   "sin": (sympy.sin, np.sin),
+    #                   "log": (sympy.log, np.log),
+    #                   "exp": (sympy.exp, np.exp)}
+    #binary_operators = {"+": (operator.add, operator.add),
+    #                    "-": (operator.sub, operator.sub)
+    #                    "*": (operator.mul, operator.mul),
+    #                    "/": (operator.truediv, operator.truediv),
+    #                    "//": (operator.floordiv, operator.floordiv),
+    #                    "%": (operator.mod, operator.mod),
+    #                    "conv": (sympy.Function("conv"), convolve),
+    #                    "**": (sympy.Pow, operator.pow}
 
     n = 10
     x1 = np.random.rand(n)
@@ -474,8 +526,10 @@ def test1():
 
 def test2():
     model = SR(niterations = 5,
-               unary_operators = {"-": operator.neg},
-               binary_operators = {"+": operator.add, "-": operator.sub, "*": operator.mul},
+               unary_operators = {"-": (operator.neg, operator.neg)},
+               binary_operators = {"+": (operator.add, operator.add),
+                                   "-": (operator.sub, operator.sub),
+                                   "*": (operator.mul, operator.mul)},
                foundBreak = True,
                symmetric_binary_operators = ["+", "*", "conv"])
 
@@ -492,8 +546,10 @@ def test2():
 
 def test3():
     model = SR(niterations = 5,
-               unary_operators = {"-": operator.neg},
-               binary_operators = {"+": operator.add, "-": operator.sub, "*": operator.mul},
+               unary_operators = {"-": (operator.neg, operator.neg)},
+               binary_operators = {"+": (operator.add, operator.add),
+                                   "-": (operator.sub, operator.sub),
+                                   "*": (operator.mul, operator.mul)},
                foundBreak = True,
                symmetric_binary_operators = ["+", "*", "conv"])
 
@@ -510,7 +566,8 @@ def test3():
 
 def test4():
     model = SR(niterations = 5,
-               binary_operators = {"-": operator.sub, "conv": convolve},
+               binary_operators = {"-": (operator.sub, operator.sub), 
+                                   "conv": (sympy.Function("conv"), convolve)},
                foundBreak = True,
                symmetric_binary_operators = ["+", "*", "conv"])
 
@@ -527,10 +584,9 @@ def test4():
 
 def test5():
     model = SR(niterations = 5,
-               binary_operators = {"+": operator.add},
+               binary_operators = {"+": (operator.add, operator.add)},
                foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"],
-               unary_models = [unary_linear_model])
+               symmetric_binary_operators = ["+", "*", "conv"])
 
     n = 10
     x1 = np.random.rand(n)
@@ -549,10 +605,9 @@ def test5():
 
 def test6():
     model = SR(niterations = 5,
-               binary_operators = {"+": operator.add},
+               binary_operators = {"+": (operator.add, operator.add)},
                foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"],
-               binary_models = [binary_linear_model])
+               symmetric_binary_operators = ["+", "*", "conv"])
 
     n = 10
     x1 = np.random.rand(n)
@@ -571,16 +626,35 @@ def test6():
     print("Model found in " + str(model.lastIteration + 1) + " iterations")
     print(model.bestExpressions)
 
+def test7():
+    model = SR(niterations = 3,
+               binary_operators = {"+": (operator.add, operator.add),
+                                   "*": (operator.mul, operator.mul),
+                                   "conv": (sympy.Function("conv"), convolve)},
+               foundBreak = True,
+               symmetric_binary_operators = ["+", "*", "conv"])
+
+    n = 10
+    x1 = np.random.rand(n)
+    x2 = np.random.rand(n)
+    X = [x1, x2]
+    y = 0.1 * convolve(0.2 * x1 + x2, 0.3 * x1 - 0.4 * x2) + 0.5
+
+    model.predict(X, y, ["x1", "x2"])
+
+    print("Model found in " + str(model.lastIteration + 1) + " iterations")
+    print(model.bestExpressions)
+
 def testpysr():
     X = 2 * np.random.randn(5, 100)
     y = 2.5382 * np.cos(X[3, :]) + X[0, :] ** 2 - 0.5
 
     model = SR(niterations = 10,
-               unary_operators = {"cos": np.cos},
-               binary_operators = {"+": operator.add, "*": operator.mul},
+               unary_operators = {"cos": (sympy.cos, np.cos)},
+               binary_operators = {"+": (operator.add, operator.add),
+                                   "*": (operator.mul, operator.mul)},
                foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"],
-               binary_models = [binary_linear_model])
+               symmetric_binary_operators = ["+", "*", "conv"])
 
     model.predict(X, y)
 
@@ -598,4 +672,5 @@ if (__name__ == "__main__"):
     test4()
     test5()
     test6()
+    test7()
     testpysr()
