@@ -14,6 +14,14 @@ def split_list(lst, n):
 
     return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
+def round_val(x, eps):
+    r = round(x / eps) * eps
+
+    if (abs(int(r) - r) <= eps):
+        return int(r)
+    else:
+        return r
+
 def expr_eq(expr1, expr2, subs_expr = {}, eps = 5e-5):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
@@ -21,10 +29,15 @@ def expr_eq(expr1, expr2, subs_expr = {}, eps = 5e-5):
         expr = expr.subs(key, value)
 
     expr = sympy.simplify(expr)
+    
+    s = str(expr)
+
+    if ("cos" in s or "sin" in s or "tan" in s or "sec" in s):
+        expr = sympy.trigsimp(sympy.expand_trig(expr))
 
     expr = expr.replace(
-        lambda e: e.is_Number and abs(e.evalf()) < eps,
-        lambda e: 0
+        lambda e: e.is_Number,
+        lambda e: round_val(e.evalf(), eps)
     )
 
     return sympy.simplify(expr) == sympy.sympify("0")
@@ -178,10 +191,15 @@ class Expr:
 
         for key, value in subs_expr.items():
             self.opt_expr = sympy.simplify(self.opt_expr.subs(key, value))
+        
+        s = str(self.opt_expr)
+
+        if ("cos" in s or "sin" in s or "tan" in s or "sec" in s):
+            self.opt_expr = sympy.trigsimp(sympy.expand_trig(self.opt_expr))
 
         self.opt_expr = self.opt_expr.replace(
-            lambda e: e.is_Number and abs(e.evalf()) < eps,
-            lambda e: 0
+            lambda e: e.is_Number,
+            lambda e: round_val(e.evalf(), eps)
         )
 
     def apply_unary_op(self, unary_sym_num_op):
