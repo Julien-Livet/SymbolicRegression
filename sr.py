@@ -22,6 +22,18 @@ def round_val(x, eps):
     else:
         return r
 
+def sym_expr_eq(expr1, expr2, symbols = []):
+    expr1 = sympy.expand(expr1)
+    expr2 = sympy.expand(expr2)
+
+    poly1 = sympy.Poly(expr1, *symbols)
+    poly2 = sympy.Poly(expr2, *symbols)
+
+    if (set(poly1.monoms()) != set(poly2.monoms())):
+        return False
+
+    return True
+
 def expr_eq(expr1, expr2, subs_expr = {}, eps = 5e-5):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
@@ -348,7 +360,7 @@ class SR:
                  maxsymbols = -1,
                  maxexpr = -1,
                  discard_previous_expr = False,
-                 symmetric_binary_operators = [],
+                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False}, #True for strict symmetry
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
@@ -356,7 +368,8 @@ class SR:
                  avoided_expr = [],
                  subs_expr = {},
                  sort_by_loss = False,
-                 maxfev = 1000):
+                 maxfev = 1000,
+                 checked_sym_expr = []):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -375,6 +388,7 @@ class SR:
         self.subs_expr = subs_expr
         self.sort_by_loss = sort_by_loss
         self.maxfev = maxfev
+        self.checked_sym_expr = checked_sym_expr
         
         assert(self.eps > 0)
 
@@ -474,6 +488,15 @@ class SR:
                 if (self.sort_by_loss):
                     exprs = sorted(exprs, key=lambda x: x.loss)
 
+            if (self.verbose):
+                for k1 in range(0, len(self.checked_sym_expr)):
+                    ce = self.checked_sym_expr[k1]
+                    
+                    for k2 in range(0, len(exprs)):
+                        e = exprs[k2]
+                        if (sym_expr_eq(e.sym_expr, ce, symbols)):
+                            print("Checked expression", ce, k1, k2)
+
             newExprs = []
 
             if (finished):
@@ -493,7 +516,12 @@ class SR:
                             random.shuffle(indices1)
 
                         for i1 in indices1:
-                            indices2 = list(range(i1 if name in self.symmetric_binary_operators else 0, len(group)))
+                            indices2 = list(range(0, len(group)))
+
+                            for k, v in self.symmetric_binary_operators.items():
+                                if (name == k):
+                                    indices2 = list(range(i1 + 1 if v else i1, len(group)))
+                                    break
 
                             if (self.shuffle_indices):
                                 random.shuffle(indices2)
@@ -523,13 +551,21 @@ class SR:
                 exprs = newExprs
             else:
                 exprs += newExprs
-            
+
+            if (self.verbose):
+                for k1 in range(0, len(self.checked_sym_expr)):
+                    ce = self.checked_sym_expr[k1]
+                    
+                    for k2 in range(0, len(exprs)):
+                        e = exprs[k2]
+                        if (sym_expr_eq(e.sym_expr, ce, symbols)):
+                            print("Checked expression", ce, k1, k2)
+
             if (self.sort_by_loss):
                 exprs = sorted(exprs, key=lambda x: x.loss)
 
             if (self.maxexpr > 0 and len(exprs) > self.maxexpr):
                 exprs = exprs[:self.maxexpr]
-                #exprs = exprs[len(exprs)-self.maxexpr:]
 
             if (finished):
                 break
@@ -553,40 +589,3 @@ class SR:
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
-
-def test4():
-    model = SR(niterations = 3,
-               binary_operators = {"-": (operator.sub, operator.sub), 
-                                   "conv": (sympy.Function("conv"), convolve)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = convolve(x1, x2) - x1
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test7():
-    model = SR(niterations = 3,
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "*": (operator.mul, operator.mul),
-                                   "conv": (sympy.Function("conv"), convolve)},
-               foundBreak = True,
-               symmetric_binary_operators = ["+", "*", "conv"])
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = 0.1 * convolve(0.2 * x1 + x2, 0.3 * x1 - 0.4 * x2) + 0.5
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)

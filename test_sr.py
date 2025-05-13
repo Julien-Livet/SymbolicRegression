@@ -9,8 +9,7 @@ def test_x1_mul_x2():
                   unary_operators = {"-": (operator.neg, operator.neg)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
-                  foundBreak = True,
-                  symmetric_binary_operators = ["+", "*"])
+                  foundBreak = True)
     #unary_operators = {"-": operator.neg,
     #                   "abs": (sympy.Abs, operator.abs),
     #                   "inv": (lambda x: 1 / x, lambda x: 1 / x),
@@ -44,8 +43,7 @@ def test_x1_add_x2():
                   unary_operators = {"-": (operator.neg, operator.neg)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
-                  foundBreak = True,
-                  symmetric_binary_operators = ["+", "*"])
+                  foundBreak = True)
 
     n = 10
     x1 = np.random.rand(n)
@@ -62,8 +60,7 @@ def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   unary_operators = {"-": (operator.neg, operator.neg)},
                   binary_operators = {"*": (operator.mul, operator.mul)},
-                  foundBreak = True,
-                  symmetric_binary_operators = ["+", "*"])
+                  foundBreak = True)
 
     n = 10
     x1 = np.random.rand(n)
@@ -79,8 +76,7 @@ def test_x1_2_add_x2_2_sub_x1_mul_x2():
 def test_a_mul_x1_add_b():
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add)},
-                  foundBreak = True,
-                  symmetric_binary_operators = ["+", "*"])
+                  foundBreak = True)
 
     n = 10
     x1 = np.random.rand(n)
@@ -98,8 +94,7 @@ def test_a_mul_x1_add_b():
 def test_a_mul_x2_add_b_mul_x2_add_c():
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add)},
-                  foundBreak = True,
-                  symmetric_binary_operators = ["+", "*"])
+                  foundBreak = True)
 
     n = 10
     x1 = np.random.rand(n)
@@ -123,10 +118,22 @@ def test_pysr():
                   unary_operators = {"cos": (sympy.cos, np.cos)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
-                  foundBreak = True,
-                  symmetric_binary_operators = ["+", "*"])
+                  foundBreak = True)
 
     model.predict(X, y)
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5")))
+
+def test_sym_expr_eq():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = a*x + b
+    expr2 = c*x + d
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+    expr1 = a*x + b
+    expr2 = c*y + d
+
+    assert(not sr.sym_expr_eq(expr1, expr2, [x, y]))
