@@ -136,7 +136,7 @@ class Expr:
         self.value_params = np.array([1.0, 0.0])
         self.loss = math.inf
     
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss):
         modules = ['numpy']
         
         for name, op in unary_ops.items():
@@ -187,20 +187,21 @@ class Expr:
             v = int(self.value_params[i]) if self.value_params[i] == int(self.value_params[i]) else self.value_params[i]
             self.opt_expr = self.opt_expr.subs(self.symbol_params[i], v)
 
-        self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
+        if (self.loss < maxloss):
+            self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
 
-        for key, value in subs_expr.items():
-            self.opt_expr = sympy.simplify(self.opt_expr.subs(key, value))
-        
-        s = str(self.opt_expr)
+            for key, value in subs_expr.items():
+                self.opt_expr = sympy.simplify(self.opt_expr.subs(key, value))
+            
+            s = str(self.opt_expr)
 
-        if ("cos" in s or "sin" in s or "tan" in s or "sec" in s):
-            self.opt_expr = sympy.trigsimp(sympy.expand_trig(self.opt_expr))
+            if ("cos" in s or "sin" in s or "tan" in s or "sec" in s):
+                self.opt_expr = sympy.trigsimp(sympy.expand_trig(self.opt_expr))
 
-        self.opt_expr = self.opt_expr.replace(
-            lambda e: e.is_Number,
-            lambda e: round_val(e.evalf(), eps)
-        )
+            self.opt_expr = self.opt_expr.replace(
+                lambda e: e.is_Number,
+                lambda e: round_val(e.evalf(), eps)
+            )
 
     def apply_unary_op(self, unary_sym_num_op):
         expr = copy.deepcopy(self)
@@ -321,7 +322,7 @@ def eval_binary_combination(args):
         return None
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
-    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev)
+    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss)
     s = str(new_expr.opt_expr)
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
@@ -332,7 +333,7 @@ def eval_binary_combination(args):
 
                 shared_finished.value = True
 
-            return new_expr
+        return new_expr
 
     return None
 
@@ -355,7 +356,7 @@ class SR:
                  avoided_expr = [],
                  subs_expr = {},
                  sort_by_loss = False,
-                 maxfev = 100):
+                 maxfev = 1000):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -407,7 +408,8 @@ class SR:
 
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
-            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators, self.maxfev)
+            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                       self.binary_operators, self.maxfev, self.maxloss)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         self.expressions = opt_exprs
@@ -444,7 +446,8 @@ class SR:
             for name, unary_operator in self.unary_operators.items():
                 for expr in exprs:
                     new_expr = expr.apply_unary_op(unary_operator)
-                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators, self.binary_operators, self.maxfev)
+                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                              self.binary_operators, self.maxfev, self.maxloss)
 
                     if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
                         if (not new_expr.opt_expr in self.avoided_expr):
@@ -461,7 +464,7 @@ class SR:
                 
                 if (finished):
                     break
-            
+
             if (len(self.unary_operators)):
                 if (self.discard_previous_expr):
                     exprs = newExprs
@@ -511,16 +514,16 @@ class SR:
 
                 finished = shared_finished.value
 
-            for res in results:
-                if (res is not None):
-                    newExprs.append(res)
-                    opt_exprs[str(res.opt_expr)] = res.loss
+                for res in results:
+                    if (res is not None):
+                        newExprs.append(res)
+                        opt_exprs[str(res.opt_expr)] = res.loss
 
             if (self.discard_previous_expr):
                 exprs = newExprs
             else:
                 exprs += newExprs
-
+            
             if (self.sort_by_loss):
                 exprs = sorted(exprs, key=lambda x: x.loss)
 
