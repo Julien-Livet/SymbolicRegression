@@ -74,7 +74,7 @@ def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.sympify("(x1-x2)**2+x1*x2")))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.sympify("(x1-x2)**2+x1*x2"))))
 
 def test_a_mul_x1_add_b():
     model = sr.SR(niterations = 3,
@@ -129,4 +129,4 @@ def test_pysr():
     model.predict(X, y)
 
     assert(len(model.bestExpressions) == 1)
-    assert(model.bestExpressions[0][0] == sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5"))
+    assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5")))

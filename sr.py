@@ -14,7 +14,7 @@ def split_list(lst, n):
 
     return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
-def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-5):
+def expr_eq(expr1, expr2, subs_expr = {}, eps = 5e-5):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
     for key, value in subs_expr.items():
@@ -169,7 +169,7 @@ class Expr:
         y_pred = func(self.value_vars, *self.value_params)
         self.loss = loss_func(y_pred, y)
         self.opt_expr = self.sym_expr
-        
+
         for i in range(0, len(self.symbol_params)):
             v = int(self.value_params[i]) if self.value_params[i] == int(self.value_params[i]) else self.value_params[i]
             self.opt_expr = self.opt_expr.subs(self.symbol_params[i], v)
@@ -305,7 +305,7 @@ def eval_binary_combination(args):
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
     new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev)
     s = str(new_expr.opt_expr)
-    
+
     if (maxloss <= 0 or new_expr.loss <= maxloss):
         if (not new_expr.opt_expr in avoided_expr):
             if (new_expr.loss < eps and foundBreak):
@@ -333,7 +333,7 @@ class SR:
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
-                 eps = 1e-5,
+                 eps = 5e-5,
                  avoided_expr = [],
                  subs_expr = {},
                  sort_by_loss = False,
