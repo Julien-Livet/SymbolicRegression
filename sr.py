@@ -623,20 +623,10 @@ class SR:
                 results = []
 
                 #with Pool(processes = cpu_count()) as pool:
-                #with Pool() as pool:
-                #    results = pool.map(eval_binary_combination, tasks)
-                for t in tasks:
-                    if (sym_expr_eq(t[0].sym_expr, self.checked_sym_expr[9], symbols)
-                        and sym_expr_eq(t[1].sym_expr, self.checked_sym_expr[10], symbols)):
-                        print("now0")
-                    results.append(eval_binary_combination(t))
-                    if (sym_expr_eq(t[0].sym_expr, self.checked_sym_expr[9], symbols)
-                        and sym_expr_eq(t[1].sym_expr, self.checked_sym_expr[10], symbols)):
-                        print("now1")
-                        print("sym_expr", results[-1].sym_expr)
-                        print("opt_expr", results[-1].opt_expr)
-                        print("loss", results[-1].loss)
-                        exit()
+                with Pool() as pool:
+                    results = pool.map(eval_binary_combination, tasks)
+                #for t in tasks:
+                #    results.append(eval_binary_combination(t))
 
                 finished = shared_finished.value
 
@@ -688,38 +678,3 @@ class SR:
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
-
-def test4():
-    model = SR(niterations = 3,
-               binary_operators = {"-": (operator.sub, operator.sub), 
-                                   "conv": (sympy.Function("conv"), convolve)},
-               foundBreak = True)
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = convolve(x1, x2) - x1
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test7():
-    model = SR(niterations = 3,
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "*": (operator.mul, operator.mul),
-                                   "conv": (sympy.Function("conv"), convolve)},
-               foundBreak = True)
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = 0.1 * convolve(0.2 * x1 + x2, 0.3 * x1 - 0.4 * x2) + 0.5
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
