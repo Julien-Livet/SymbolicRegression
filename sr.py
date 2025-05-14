@@ -94,7 +94,7 @@ def new_params(expr, symbols):
 
     for d in range(1, degree + 1):
         for comb in itertools.combinations_with_replacement(symbols, d):
-            combined_symbols.add(sympy.Mul(*sorted(comb, key=str)))
+            combined_symbols.add(sympy.Mul(*sorted(comb, key = str)))
 
     combined_symbols = list(combined_symbols)
     replacements = {}
@@ -125,30 +125,51 @@ def new_params(expr, symbols):
         
         combined_symbols = monomes_symboliques
 
-    combined_symbols.append(1)
-    new_symbol_params.append(newSymbol())
-    new_value_params.append(1.0)
-    terms.append(new_symbol_params[-1])
-    replacements[cst] = new_symbol_params[-1]
+    if (cst != 0):
+        combined_symbols.append(1)
+        new_symbol_params.append(newSymbol())
+        new_value_params.append(1.0)
+        terms.append(new_symbol_params[-1])
+        replacements[cst] = new_symbol_params[-1]
 
     expr = sum(c * m for c, m in zip(terms, combined_symbols))
 
     return (new_symbol_params, new_value_params, expr, replacements)
 
 class Expr:
-    def __init__(self, symbol_var, value_var):
-        a = newSymbol()
-        b = newSymbol()
-        
+    def __init__(self, symbol_var = None, value_var = None, expr = None, symbol_vars = None, value_vars = None):
+        if (expr and symbol_vars and value_vars):
+            self.symbol_vars = []
+            self.value_vars = []
+
+            for s in expr.free_symbols:
+                try:
+                    i = symbol_vars.index(s)
+                    self.symbol_vars.append(symbol_vars[i])
+                    self.value_vars.append(value_vars[i])
+                except:
+                    pass
+
+            self.symbol_params = list(expr.free_symbols - set(symbol_vars))
+            self.value_params = np.ones(len(self.symbol_params))
+
+            self.sym_expr = expr
+
+            self.simplify()
+        else:
+            a = newSymbol()
+            b = newSymbol()
+            
+            self.sym_expr = a * symbol_var + b
+            self.symbol_vars = [symbol_var]
+            self.value_vars = [value_var]
+            self.symbol_params = [a, b]
+            self.value_params = np.array([1.0, 0.0])
+            
         self.opt_expr = ""
-        self.sym_expr = a * symbol_var + b
-        self.symbol_vars = [symbol_var]
-        self.value_vars = [value_var]
-        self.symbol_params = [a, b]
-        self.value_params = np.array([1.0, 0.0])
         self.loss = math.inf
-    
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss):
+
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss, fixed_cst_value = None):
         modules = ['numpy']
         
         for name, op in unary_ops.items():
@@ -163,12 +184,27 @@ class Expr:
             if (type(sym_op) == sympy.core.function.UndefinedFunction):
                 modules.append({str(sym_op): num_op})
 
-        f = sympy.lambdify(self.symbol_vars + self.symbol_params, self.sym_expr, modules = modules)
+        symbol_params = copy.deepcopy(self.symbol_params)
+        value_params = list(copy.deepcopy(self.value_params))
+        sym_expr = copy.deepcopy(self.sym_expr)
+
+        if (fixed_cst_value != None):
+            sym_expr = sym_expr.subs(symbol_params[-1], fixed_cst_value)
+            del symbol_params[-1]
+            del value_params[-1]
+
+        f = sympy.lambdify(self.symbol_vars + symbol_params, sym_expr, modules = modules)
         func = model_func(f)
 
         try:
-            p0 = [float(x) for x in self.value_params]
-            self.value_params, _ = curve_fit(func, self.value_vars, y, p0 = p0)
+            p0 = [float(x) for x in value_params]
+            #p0 = np.random.randn(len(p0), 1)
+            value_params, _ = curve_fit(func, self.value_vars, y, p0 = p0)
+
+            if (fixed_cst_value != None):
+                self.value_params = list(value_params) + [fixed_cst_value]
+            else:
+                self.value_params = value_params
 
             for i in range(0, len(self.value_params)):
                 self.value_params[i] = round(self.value_params[i] / eps) * eps
@@ -191,7 +227,7 @@ class Expr:
         except RuntimeError:
             pass
 
-        y_pred = func(self.value_vars, *self.value_params)
+        y_pred = func(self.value_vars, *value_params)
         self.loss = loss_func(y_pred, y)
         self.opt_expr = self.sym_expr
 
@@ -328,18 +364,18 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, shared_finished = args
 
     if (shared_finished.value):
         return None
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
-    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss)
+    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss, fixed_cst_value)
     s = str(new_expr.opt_expr)
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
         if (not new_expr.opt_expr in avoided_expr):
-            if (new_expr.loss < eps and foundBreak):
+            if (new_expr.loss < epsloss and foundBreak):
                 if (verbose):
                     print("Found expression:", str(new_expr.opt_expr))
 
@@ -364,12 +400,16 @@ class SR:
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
-                 eps = 5e-5,
+                 eps = 1e-3,
+                 epsloss = 1e-9,
                  avoided_expr = [],
                  subs_expr = {},
                  sort_by_loss = False,
                  maxfev = 1000,
-                 checked_sym_expr = []):
+                 checked_sym_expr = [],
+                 extra_start_sym_expr = [],
+                 fixed_cst_value = None,
+                 maxtask = -1):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -384,11 +424,15 @@ class SR:
         self.verbose = verbose
         self.group_expr_size = group_expr_size
         self.eps = eps
+        self.epsloss = epsloss
         self.avoided_expr = avoided_expr
         self.subs_expr = subs_expr
         self.sort_by_loss = sort_by_loss
         self.maxfev = maxfev
         self.checked_sym_expr = checked_sym_expr
+        self.extra_start_sym_expr = extra_start_sym_expr
+        self.fixed_cst_value = fixed_cst_value
+        self.maxtask = maxtask
         
         assert(self.eps > 0)
 
@@ -423,7 +467,13 @@ class SR:
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss)
+                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value)
+            opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
+            
+        for ee in self.extra_start_sym_expr:
+            exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
+            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         self.expressions = opt_exprs
@@ -434,7 +484,7 @@ class SR:
         self.bestExpressions = []
 
         for i in range(0, len(sortedLosses)):
-            if (sortedLosses[i] >= self.eps):
+            if (sortedLosses[i] >= self.epsloss):
                 break
 
             expr = sympy.simplify(sortedOpt_exprs[i])
@@ -461,14 +511,14 @@ class SR:
                 for expr in exprs:
                     new_expr = expr.apply_unary_op(unary_operator)
                     new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                              self.binary_operators, self.maxfev, self.maxloss)
+                                              self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value)
 
                     if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
                         if (not new_expr.opt_expr in self.avoided_expr):
                             newExprs.append(new_expr)
                             opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
                             
-                            if (new_expr.loss < self.eps):
+                            if (new_expr.loss < self.epsloss):
                                 if (verbose):
                                     print("Found expression:", str(new_expr.opt_expr))
 
@@ -494,6 +544,7 @@ class SR:
                     
                     for k2 in range(0, len(exprs)):
                         e = exprs[k2]
+
                         if (sym_expr_eq(e.sym_expr, ce, symbols)):
                             print("Checked expression", ce, k1, k2)
 
@@ -514,7 +565,7 @@ class SR:
 
                         if (self.shuffle_indices):
                             random.shuffle(indices1)
-
+                        n = len(tasks)
                         for i1 in indices1:
                             indices2 = list(range(0, len(group)))
 
@@ -526,11 +577,18 @@ class SR:
                             if (self.shuffle_indices):
                                 random.shuffle(indices2)
 
+                            newTasks = []
+
                             for i2 in indices2:
-                                tasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
-                                              self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
-                                              self.eps, self.avoided_expr, self.foundBreak, self.subs_expr,
-                                              self.unary_operators, self.binary_operators, self.maxfev, shared_finished))
+                                newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
+                                                self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
+                                                self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
+                                                self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value, shared_finished))
+
+                            if (self.maxtask > 0):
+                                newTasks = newTasks[:self.maxtask]
+
+                            tasks += newTasks
 
                 results = []
 
@@ -558,6 +616,7 @@ class SR:
                     
                     for k2 in range(0, len(exprs)):
                         e = exprs[k2]
+
                         if (sym_expr_eq(e.sym_expr, ce, symbols)):
                             print("Checked expression", ce, k1, k2)
 
@@ -576,7 +635,7 @@ class SR:
         self.bestExpressions = []
 
         for i in range(0, len(sortedLosses)):
-            if (sortedLosses[i] >= self.eps):
+            if (sortedLosses[i] >= self.epsloss):
                 break
 
             expr = sympy.simplify(sortedOpt_exprs[i])
