@@ -6,8 +6,19 @@ from multiprocessing.dummy import Pool
 import numpy as np
 import operator
 import random
-from scipy.optimize import curve_fit
+from scipy.optimize import basinhopping, curve_fit, differential_evolution
 import sympy
+
+def fit(func, value_vars, y, p0, loss_func, eps, continuous = True):
+    if (continuous):
+        value_params, _ = curve_fit(func, value_vars, y, p0 = p0)
+
+        return value_params
+    else:
+        res = differential_evolution(lambda x: loss_func(func(value_vars, *[int(z) for z in x]), y), [(-3, 3) for x in p0], atol = eps)
+        #res = basinhopping(lambda x: loss_func(func(value_vars, *[int(z) for z in x]), y), p0)
+
+        return [int(x) for x in res.x]
 
 def split_list(lst, n):
     k, m = divmod(len(lst), n)
@@ -153,6 +164,8 @@ class Expr:
             self.symbol_params = list(expr.free_symbols - set(symbol_vars))
             self.value_params = np.ones(len(self.symbol_params))
 
+            assert(len(self.symbol_params) == len(self.value_params))
+
             self.sym_expr = expr
 
             self.simplify()
@@ -166,12 +179,14 @@ class Expr:
             self.symbol_params = [a, b]
             self.value_params = np.array([1.0, 0.0])
             
+            assert(len(self.symbol_params) == len(self.value_params))
+            
         self.opt_expr = ""
         self.loss = math.inf
 
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss, fixed_cst_value = None):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss, fixed_cst_value = None, continuous_params = True):
         modules = ['numpy']
-        
+
         for name, op in unary_ops.items():
             sym_op, num_op = op
             
@@ -199,21 +214,23 @@ class Expr:
         try:
             p0 = [float(x) for x in value_params]
             #p0 = np.random.randn(len(p0), 1)
-            value_params, _ = curve_fit(func, self.value_vars, y, p0 = p0)
+            value_params = fit(func, self.value_vars, y, p0, loss_func, eps, continuous_params)
+
+            for i in range(0, len(value_params)):
+                value_params[i] = round(value_params[i] / eps) * eps
+
+                if (abs(self.value_params[i]) < eps):
+                    value_params[i] = 0
 
             if (fixed_cst_value != None):
                 self.value_params = list(value_params) + [fixed_cst_value]
             else:
                 self.value_params = value_params
 
-            for i in range(0, len(self.value_params)):
-                self.value_params[i] = round(self.value_params[i] / eps) * eps
+            self.value_params = np.array(self.value_params)
 
-                if (abs(self.value_params[i]) < eps):
-                    self.value_params[i] = 0
-                    
             norm = np.linalg.norm(self.value_params)
-            
+
             if (norm > eps):
                 p = self.value_params / norm
 
@@ -224,16 +241,17 @@ class Expr:
                 self.value_params = norm * p
             else:
                 self.value_params *= 0
+
         except RuntimeError:
             pass
 
         y_pred = func(self.value_vars, *value_params)
         self.loss = loss_func(y_pred, y)
-        self.opt_expr = self.sym_expr
+        self.opt_expr = sym_expr
 
-        for i in range(0, len(self.symbol_params)):
-            v = int(self.value_params[i]) if self.value_params[i] == int(self.value_params[i]) else self.value_params[i]
-            self.opt_expr = self.opt_expr.subs(self.symbol_params[i], v)
+        for i in range(0, len(symbol_params)):
+            v = int(value_params[i]) if value_params[i] == int(value_params[i]) else value_params[i]
+            self.opt_expr = self.opt_expr.subs(symbol_params[i], v)
 
         if (self.loss < maxloss):
             self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
@@ -260,7 +278,9 @@ class Expr:
 
         expr.sym_expr = a * sym_op(expr.sym_expr) + b
         expr.symbol_params = list(expr.symbol_params) + [a, b]
-        expr.value_params = list(expr.value_params) + list(np.array([1.0, 0.0]))
+        expr.value_params = list(expr.value_params) + [1.0, 0.0]
+        
+        assert(len(expr.symbol_params) == len(expr.value_params))
 
         expr.simplify()
 
@@ -269,7 +289,7 @@ class Expr:
     def apply_binary_op(self, binary_sym_num_op, other_expr):
         expr = copy.deepcopy(self)
         sym_op, num_op = binary_sym_num_op
-        
+
         a = newSymbol()
         b = newSymbol()
 
@@ -294,14 +314,19 @@ class Expr:
                 seen.add(sym)
                 unique_symbols.append(sym)
                 unique_values.append(val)
-        
+
         expr.symbol_vars = unique_symbols
         expr.value_vars = unique_values
+
         expr.symbol_params += symbol_params + [a, b]
         expr.value_params = list(expr.value_params) + list(other_expr.value_params) + list(np.array([1.0, 0.0]))
 
+        assert(len(expr.symbol_params) == len(expr.value_params))
+        
         expr.simplify()
 
+        assert(len(expr.symbol_params) == len(expr.value_params))
+        
         return expr
 
     def simplify(self):
@@ -325,15 +350,17 @@ class Expr:
 
         n_p = new_params(sym_expr.xreplace(replacements), symbols)
         
-        original_symbol_params = new_symbol_params
-        original_value_params = new_value_params
-        
+        original_symbol_params = copy.deepcopy(new_symbol_params)
+        original_value_params = copy.deepcopy(new_value_params)
+
         new_symbol_params = n_p[0]
         new_value_params = n_p[1]
 
         for k, v in replaced_symbols.items():
             try:
-                del new_symbol_params[new_symbol_params.index(k)]
+                i = new_symbol_params.index(k)
+                del new_symbol_params[i]
+                del new_value_params[i]
             except ValueError:
                 pass
 
@@ -343,9 +370,9 @@ class Expr:
         for key, value in replaced_symbols.items():
             self.sym_expr = self.sym_expr.subs(key, value)
 
-        self.symbol_params = new_symbol_params
+        self.symbol_params = copy.deepcopy(new_symbol_params)
         self.value_params = np.array(new_value_params)
-        
+
         for k, v in replacements.items():
             try:
                 i = original_symbol_params.index(k)
@@ -364,13 +391,13 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, continuous_params, shared_finished = args
 
     if (shared_finished.value):
         return None
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
-    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss, fixed_cst_value)
+    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss, fixed_cst_value, continuous_params)
     s = str(new_expr.opt_expr)
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
@@ -409,7 +436,8 @@ class SR:
                  checked_sym_expr = [],
                  extra_start_sym_expr = [],
                  fixed_cst_value = None,
-                 maxtask = -1):
+                 maxtask = -1,
+                 continuous_params = True):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -433,6 +461,7 @@ class SR:
         self.extra_start_sym_expr = extra_start_sym_expr
         self.fixed_cst_value = fixed_cst_value
         self.maxtask = maxtask
+        self.continuous_params = continuous_params
         
         assert(self.eps > 0)
 
@@ -467,13 +496,13 @@ class SR:
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value)
+                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.continuous_params)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
             
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value)
+                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.continuous_params)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         self.expressions = opt_exprs
@@ -511,7 +540,7 @@ class SR:
                 for expr in exprs:
                     new_expr = expr.apply_unary_op(unary_operator)
                     new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                              self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value)
+                                              self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.continuous_params)
 
                     if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
                         if (not new_expr.opt_expr in self.avoided_expr):
@@ -583,7 +612,8 @@ class SR:
                                 newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                                 self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
-                                                self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value, shared_finished))
+                                                self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
+                                                self.continuous_params, shared_finished))
 
                             if (self.maxtask > 0):
                                 newTasks = newTasks[:self.maxtask]
@@ -593,10 +623,20 @@ class SR:
                 results = []
 
                 #with Pool(processes = cpu_count()) as pool:
-                with Pool() as pool:
-                    results = pool.map(eval_binary_combination, tasks)
-                #for t in tasks:
-                #    results.append(eval_binary_combination(t))
+                #with Pool() as pool:
+                #    results = pool.map(eval_binary_combination, tasks)
+                for t in tasks:
+                    if (sym_expr_eq(t[0].sym_expr, self.checked_sym_expr[9], symbols)
+                        and sym_expr_eq(t[1].sym_expr, self.checked_sym_expr[10], symbols)):
+                        print("now0")
+                    results.append(eval_binary_combination(t))
+                    if (sym_expr_eq(t[0].sym_expr, self.checked_sym_expr[9], symbols)
+                        and sym_expr_eq(t[1].sym_expr, self.checked_sym_expr[10], symbols)):
+                        print("now1")
+                        print("sym_expr", results[-1].sym_expr)
+                        print("opt_expr", results[-1].opt_expr)
+                        print("loss", results[-1].loss)
+                        exit()
 
                 finished = shared_finished.value
 
@@ -648,3 +688,38 @@ class SR:
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
+
+def test4():
+    model = SR(niterations = 3,
+               binary_operators = {"-": (operator.sub, operator.sub), 
+                                   "conv": (sympy.Function("conv"), convolve)},
+               foundBreak = True)
+
+    n = 10
+    x1 = np.random.rand(n)
+    x2 = np.random.rand(n)
+    X = [x1, x2]
+    y = convolve(x1, x2) - x1
+
+    model.predict(X, y, ["x1", "x2"])
+
+    print("Model found in " + str(model.lastIteration + 1) + " iterations")
+    print(model.bestExpressions)
+
+def test7():
+    model = SR(niterations = 3,
+               binary_operators = {"+": (operator.add, operator.add),
+                                   "*": (operator.mul, operator.mul),
+                                   "conv": (sympy.Function("conv"), convolve)},
+               foundBreak = True)
+
+    n = 10
+    x1 = np.random.rand(n)
+    x2 = np.random.rand(n)
+    X = [x1, x2]
+    y = 0.1 * convolve(0.2 * x1 + x2, 0.3 * x1 - 0.4 * x2) + 0.5
+
+    model.predict(X, y, ["x1", "x2"])
+
+    print("Model found in " + str(model.lastIteration + 1) + " iterations")
+    print(model.bestExpressions)
