@@ -616,7 +616,9 @@ class SR:
                             random.shuffle(indices1)
                             
                         n = len(tasks)
-                        
+                    
+                        newTasks = []
+
                         for i1 in indices1:
                             indices2 = list(range(0, len(group)))
 
@@ -628,8 +630,6 @@ class SR:
                             if (self.shuffle_indices):
                                 random.shuffle(indices2)
 
-                            newTasks = []
-
                             for i2 in indices2:
                                 newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                                 self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
@@ -637,10 +637,10 @@ class SR:
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
                                                 self.bound_int_params, groupId, len(tasks) - n + len(newTasks), shared_finished))
 
-                            if (self.maxtask > 0):
-                                newTasks = newTasks[:self.maxtask]
+                        if (self.maxtask > 0):
+                            newTasks = newTasks[:self.maxtask]
 
-                            tasks += newTasks
+                        tasks += newTasks
 
                         if (self.verbose):
                             print("Operator " + name + " group #" + str(groupId) + " with " + str(len(tasks) - n) + " tasks")
