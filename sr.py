@@ -16,7 +16,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
 
         return value_params
     else:
-        value_params, _ = curve_fit(func, value_vars, y, p0 = p0)
+        value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
 
         best_x = [int(x) for x in value_params]
         best_loss = loss_func(func(value_vars, *best_x), y)
