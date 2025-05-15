@@ -409,11 +409,11 @@ class Expr:
 def eval_binary_combination(args):
     expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, bound_int_params, groupId, taskId, shared_finished = args
 
-    if (verbose):
-        print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
-
     if (shared_finished.value):
         return None
+
+    if (verbose):
+        print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
     new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss, fixed_cst_value, bound_int_params)
