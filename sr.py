@@ -407,10 +407,10 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, bound_int_params, taskId, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, bound_int_params, groupId, taskId, shared_finished = args
 
     if (verbose):
-        print("Task #" + str(taskId))
+        print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
 
     if (shared_finished.value):
         return None
@@ -608,12 +608,15 @@ class SR:
                 shared_finished = manager.Value('b', False)
                 
                 for name, binary_operator in self.binary_operators.items():
-                    for group in groups:
+                    for groupId in range(0, len(groups)):
+                        group = groups[groupId]
                         indices1 = list(range(0, len(group)))
 
                         if (self.shuffle_indices):
                             random.shuffle(indices1)
+                            
                         n = len(tasks)
+                        
                         for i1 in indices1:
                             indices2 = list(range(0, len(group)))
 
@@ -632,17 +635,24 @@ class SR:
                                                 self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
-                                                self.bound_int_params, len(newTasks), shared_finished))
+                                                self.bound_int_params, groupId, len(tasks) - n + len(newTasks), shared_finished))
+                                if (newTasks[-1][2] == "*"
+                                    and sym_expr_eq(newTasks[-1][0].sym_expr, self.checked_sym_expr[9], symbols)
+                                    and sym_expr_eq(newTasks[-1][1].sym_expr, self.checked_sym_expr[10], symbols)):
+                                    print("HERE", groupId, len(tasks) - n + len(newTasks))
 
                             if (self.maxtask > 0):
                                 newTasks = newTasks[:self.maxtask]
 
                             tasks += newTasks
 
+                        if (self.verbose):
+                            print("Operator " + name + " group #" + str(groupId) + " with " + str(len(tasks) - n) + " tasks")
+
                 results = []
 
                 #with Pool(processes = cpu_count()) as pool:
-                with Pool() as pool:
+                with Pool(processes = cpu_count()) as pool:
                     results = pool.map(eval_binary_combination, tasks)
                 #for t in tasks:
                 #    results.append(eval_binary_combination(t))
