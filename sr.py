@@ -40,7 +40,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
             x = [round(z) for z in value_params]
             loss = loss_func(func(value_vars, *x), y)
 
-            if (loss < best_loss):
+            if (loss < best_loss and any(x)):
                 best_loss = loss
                 best_x = x
 
