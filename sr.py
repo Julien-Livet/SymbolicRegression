@@ -636,10 +636,6 @@ class SR:
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
                                                 self.bound_int_params, groupId, len(tasks) - n + len(newTasks), shared_finished))
-                                if (newTasks[-1][2] == "*"
-                                    and sym_expr_eq(newTasks[-1][0].sym_expr, self.checked_sym_expr[9], symbols)
-                                    and sym_expr_eq(newTasks[-1][1].sym_expr, self.checked_sym_expr[10], symbols)):
-                                    print("HERE", groupId, len(tasks) - n + len(newTasks))
 
                             if (self.maxtask > 0):
                                 newTasks = newTasks[:self.maxtask]
