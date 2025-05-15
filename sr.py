@@ -12,19 +12,32 @@ import sympy
 
 def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
     if (bound == None):
-        value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
+        try:
+            value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
+        except RuntimeError as e:
+            print(e)
+
+            return p0
 
         return value_params
-    else:
+
+    try:
         value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
+    except RuntimeError as e:
+        print(e)
 
-        best_x = [int(x) for x in value_params]
-        best_loss = loss_func(func(value_vars, *best_x), y)
-        x = best_x
+        return p0
 
-        for i in range(0, maxfev):
-            value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x) + np.array([random.randint(bound[0], bound[1]) for x in p0]), maxfev = maxfev)
-            x = [int(x) for x in value_params]
+    best_x = [round(z) for z in value_params]
+    best_loss = loss_func(func(value_vars, *best_x), y)
+    x = best_x
+
+    for i in range(0, maxfev):
+        try:
+            value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x) + np.array([random.randint(bound[0], bound[1]) for z in p0]), maxfev = 10 * maxfev)
+            #value_params, _ = curve_fit(func, value_vars, y, p0 = [random.randint(bound[0], bound[1]) for z in p0], maxfev = maxfev, bounds = bound)
+
+            x = [round(z) for z in value_params]
             loss = loss_func(func(value_vars, *x), y)
 
             if (loss < best_loss):
@@ -32,9 +45,11 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
                 best_x = x
 
                 if (best_loss < eps):
-                    break                
+                    break
+        except RuntimeError as e:
+            pass
 
-        return best_x
+    return best_x
 
 def split_list(lst, n):
     k, m = divmod(len(lst), n)
@@ -200,7 +215,7 @@ class Expr:
         self.opt_expr = ""
         self.loss = math.inf
 
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss, fixed_cst_value = None, bound_int_params = True):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss, fixed_cst_value = None, bound_int_params = None):
         modules = ['numpy']
 
         for name, op in unary_ops.items():
@@ -407,11 +422,24 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, bound_int_params, groupId, taskId, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, bound_int_params, groupId, taskId, process_sym_expr, symbols, shared_finished = args
 
     if (shared_finished.value):
         return None
 
+    process = True
+
+    if (process_sym_expr != None):
+        process = False
+
+        for e in process_sym_expr:
+            if (sym_expr_eq(e, expr1.sym_expr, symbols) or sym_expr_eq(e, expr2.sym_expr, symbols)):
+                process = True
+                break
+
+    if (not process):
+        return None
+    
     if (verbose):
         print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
 
@@ -456,7 +484,8 @@ class SR:
                  extra_start_sym_expr = [],
                  fixed_cst_value = None,
                  maxtask = -1,
-                 bound_int_params = None):
+                 bound_int_params = None,
+                 process_sym_expr = None):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -481,6 +510,7 @@ class SR:
         self.fixed_cst_value = fixed_cst_value
         self.maxtask = maxtask
         self.bound_int_params = bound_int_params
+        self.process_sym_expr = process_sym_expr
         
         assert(self.eps > 0)
 
@@ -557,22 +587,33 @@ class SR:
 
             for name, unary_operator in self.unary_operators.items():
                 for expr in exprs:
-                    new_expr = expr.apply_unary_op(unary_operator)
-                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                              self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
+                    process = True
 
-                    if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
-                        if (not new_expr.opt_expr in self.avoided_expr):
-                            newExprs.append(new_expr)
-                            opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
-                            
-                            if (new_expr.loss < self.epsloss):
-                                if (verbose):
-                                    print("Found expression:", str(new_expr.opt_expr))
+                    if (self.process_sym_expr != None):
+                        process = False
+                        
+                        for e in self.process_sym_expr:
+                            if (sym_expr_eq(e, expr.sym_expr, symbols)):
+                                process = True
+                                break
+                    
+                    if (process):
+                        new_expr = expr.apply_unary_op(unary_operator)
+                        new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                                  self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
 
-                                if (self.foundBreak):
-                                    finished = True
-                                    break
+                        if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
+                            if (not new_expr.opt_expr in self.avoided_expr):
+                                newExprs.append(new_expr)
+                                opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
+                                
+                                if (new_expr.loss < self.epsloss):
+                                    if (verbose):
+                                        print("Found expression:", str(new_expr.opt_expr))
+
+                                    if (self.foundBreak):
+                                        finished = True
+                                        break
                 
                 if (finished):
                     break
@@ -635,7 +676,8 @@ class SR:
                                                 self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
-                                                self.bound_int_params, groupId, len(tasks) - n + len(newTasks), shared_finished))
+                                                self.bound_int_params, groupId, len(tasks) - n + len(newTasks),
+                                                self.process_sym_expr, symbols, shared_finished))
 
                         if (self.maxtask > 0):
                             newTasks = newTasks[:self.maxtask]
@@ -703,38 +745,3 @@ class SR:
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
-
-def test4():
-    model = SR(niterations = 3,
-               binary_operators = {"-": (operator.sub, operator.sub), 
-                                   "conv": (sympy.Function("conv"), convolve)},
-               foundBreak = True)
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = convolve(x1, x2) - x1
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
-
-def test7():
-    model = SR(niterations = 3,
-               binary_operators = {"+": (operator.add, operator.add),
-                                   "*": (operator.mul, operator.mul),
-                                   "conv": (sympy.Function("conv"), convolve)},
-               foundBreak = True)
-
-    n = 10
-    x1 = np.random.rand(n)
-    x2 = np.random.rand(n)
-    X = [x1, x2]
-    y = 0.1 * convolve(0.2 * x1 + x2, 0.3 * x1 - 0.4 * x2) + 0.5
-
-    model.predict(X, y, ["x1", "x2"])
-
-    print("Model found in " + str(model.lastIteration + 1) + " iterations")
-    print(model.bestExpressions)
