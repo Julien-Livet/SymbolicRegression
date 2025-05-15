@@ -23,7 +23,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
         x = best_x
 
         for i in range(0, maxfev):
-            value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x) + np.array([random.randint(bound[0], bound[1]) for x in p0]))
+            value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x) + np.array([random.randint(bound[0], bound[1]) for x in p0]), maxfev = maxfev)
             x = [int(x) for x in value_params]
             loss = loss_func(func(value_vars, *x), y)
 
