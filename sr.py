@@ -2,8 +2,8 @@ import copy
 from deap import base, creator, tools, algorithms
 import itertools
 import math
-from multiprocessing import cpu_count, Manager#, Pool
-from multiprocessing.dummy import Pool
+import multiprocessing
+from multiprocessing import cpu_count, Manager
 import numpy as np
 import operator
 import random
@@ -227,7 +227,8 @@ class Expr:
         for name, op in binary_ops.items():
             sym_op, num_op = op
             
-            if (type(sym_op) == sympy.core.function.UndefinedFunction):
+            #if (type(sym_op) == sympy.core.function.UndefinedFunction):
+            if (name.isalnum()):
                 modules.append({str(sym_op): num_op})
 
         symbol_params = copy.deepcopy(self.symbol_params)
@@ -689,8 +690,8 @@ class SR:
 
                 results = []
 
-                #with Pool(processes = cpu_count()) as pool:
-                with Pool(processes = cpu_count()) as pool:
+                with multiprocessing.Pool(processes = cpu_count()) as pool:
+                #with multiprocessing.dummy.Pool(processes = cpu_count()) as pool:
                     results = pool.map(eval_binary_combination, tasks)
                 #for t in tasks:
                 #    results.append(eval_binary_combination(t))
