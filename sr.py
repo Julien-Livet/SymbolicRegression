@@ -244,6 +244,8 @@ class Expr:
             f = sympy.lambdify(self.symbol_vars + symbol_params, sym_expr, modules = modules)
         except SyntaxError as e:
             print(e)
+            print(sym_expr)
+            print(symbol_params)
 
             return
 
@@ -319,6 +321,7 @@ class Expr:
         expr.value_params = list(expr.value_params) + [1.0, 0.0]
         
         assert(len(expr.symbol_params) == len(expr.value_params))
+        assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
 
         expr.simplify()
 
@@ -358,12 +361,14 @@ class Expr:
 
         expr.symbol_params += symbol_params + [a, b]
         expr.value_params = list(expr.value_params) + list(other_expr.value_params) + list(np.array([1.0, 0.0]))
-
+        
         assert(len(expr.symbol_params) == len(expr.value_params))
+        assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
         
         expr.simplify()
 
         assert(len(expr.symbol_params) == len(expr.value_params))
+        assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
         
         return expr
 
@@ -422,7 +427,7 @@ class Expr:
         free_symbols = self.sym_expr.free_symbols
 
         for i in range(0, len(original_symbol_params)):
-            if (original_symbol_params[i] in free_symbols):
+            if (original_symbol_params[i] in free_symbols and not original_symbol_params[i] in self.symbol_params):
                 self.symbol_params.append(original_symbol_params[i])
                 self.value_params = np.array(list(self.value_params) + [original_value_params[i]])
 
