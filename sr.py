@@ -101,14 +101,21 @@ def sign(num):
 
 symbolIndex = 0
 
-def newSymbol():
-    global symbolIndex
+def init_shared(var_):
+    global shared_symbolIndex
+    shared_symbolIndex = var_
 
-    s = sympy.Symbol("_" + str(symbolIndex))
-    
-    symbolIndex += 1
-    
-    return s
+def newSymbol():
+    try:
+        i = shared_symbolIndex.value
+        shared_symbolIndex.value += 1
+    except NameError:
+        global symbolIndex
+
+        i = symbolIndex
+        symbolIndex += 1
+
+    return sympy.Symbol("_" + str(i))
 
 def mse_loss(x, y):
     return np.sum((x - y) ** 2)
@@ -244,8 +251,6 @@ class Expr:
             f = sympy.lambdify(self.symbol_vars + symbol_params, sym_expr, modules = modules)
         except SyntaxError as e:
             print(e)
-            print(sym_expr)
-            print(symbol_params)
 
             return
 
@@ -328,6 +333,9 @@ class Expr:
         return expr
 
     def apply_binary_op(self, binary_sym_num_op, other_expr):
+        s1 = copy.deepcopy(self.symbol_params)
+        s2 = copy.deepcopy(other_expr.symbol_params)
+        
         expr = copy.deepcopy(self)
         sym_op, num_op = binary_sym_num_op
 
@@ -361,7 +369,7 @@ class Expr:
 
         expr.symbol_params += symbol_params + [a, b]
         expr.value_params = list(expr.value_params) + list(other_expr.value_params) + list(np.array([1.0, 0.0]))
-        
+
         assert(len(expr.symbol_params) == len(expr.value_params))
         assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
         
@@ -701,8 +709,10 @@ class SR:
 
                 results = []
 
-                with multiprocessing.Pool(processes = cpu_count()) as pool:
-                #with multiprocessing.dummy.Pool(processes = cpu_count()) as pool:
+                shared_value = manager.Value('i', symbolIndex)
+
+                with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = cpu_count()) as pool:
+                #with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = cpu_count()) as pool:
                     results = pool.map(eval_binary_combination, tasks)
                 #for t in tasks:
                 #    results.append(eval_binary_combination(t))
