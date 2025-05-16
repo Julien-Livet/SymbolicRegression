@@ -70,6 +70,9 @@ def sym_expr_eq(expr1, expr2, symbols = []):
 
     poly1 = sympy.Poly(expr1, *symbols)
     poly2 = sympy.Poly(expr2, *symbols)
+    
+    if (poly1 == None or poly2 == None):
+        return False
 
     if (set(poly1.monoms()) != set(poly2.monoms())):
         return False
@@ -134,6 +137,10 @@ def new_params(expr, symbols):
 
     poly = expr.as_poly(*symbols)
     degree = 0
+
+    if (poly == None):
+        return (new_symbol_params, new_value_params, expr, {})
+
     cst = poly.coeff_monomial(1)
 
     poly = poly - cst
