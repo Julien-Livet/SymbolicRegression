@@ -76,7 +76,7 @@ def sym_expr_eq(expr1, expr2, symbols = []):
 
     return True
 
-def expr_eq(expr1, expr2, subs_expr = {}, eps = 5e-5):
+def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-3):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
     for key, value in subs_expr.items():
@@ -240,7 +240,13 @@ class Expr:
             del symbol_params[-1]
             del value_params[-1]
 
-        f = sympy.lambdify(self.symbol_vars + symbol_params, sym_expr, modules = modules)
+        try:
+            f = sympy.lambdify(self.symbol_vars + symbol_params, sym_expr, modules = modules)
+        except SyntaxError as e:
+            print(e)
+
+            return
+
         func = model_func(f)
 
         try:
@@ -742,7 +748,7 @@ class SR:
                 self.bestExpressions.append((expr, sortedLosses[i]))
 
         if (len(self.bestExpressions) == 0):
-            self.bestExpressions = [sympy.simplify(sortedOpt_exprs[0], sortedLosses[0])]
+            self.bestExpressions = [(sympy.simplify(sortedOpt_exprs[0]), sortedLosses[0])]
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])

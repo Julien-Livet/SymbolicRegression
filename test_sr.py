@@ -92,6 +92,7 @@ def test_a_mul_x1_add_b():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
+    print(model.bestExpressions)
     assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify(str(a) + "*x1+" + str(b))))
 
 def test_a_mul_x2_add_b_mul_x2_add_c():
