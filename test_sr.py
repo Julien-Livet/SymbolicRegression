@@ -122,7 +122,8 @@ def test_pysr():
                   unary_operators = {"cos": (sympy.cos, np.cos)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
-                  foundBreak = True)
+                  foundBreak = True,
+                  eps = 1e-6)
 
     model.predict(X, y)
 
