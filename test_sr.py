@@ -4,6 +4,9 @@ import random
 import sr
 import sympy
 
+def sym_conv(x, y):
+    return sympy.sympify("conv" + str(x) + ", " + str(y))
+
 def test_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   unary_operators = {"-": (operator.neg, operator.neg)},
@@ -24,7 +27,7 @@ def test_x1_mul_x2():
     #                    "/": (operator.truediv, operator.truediv),
     #                    "//": (operator.floordiv, operator.floordiv),
     #                    "%": (operator.mod, operator.mod),
-    #                    "conv": (sympy.Function("conv"), sr.convolve),
+    #                    "conv": (sym_conv, sr.convolve),
     #                    "**": (sympy.Pow, operator.pow}
 
     n = 10
