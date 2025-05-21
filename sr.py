@@ -83,7 +83,8 @@ def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-3):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))
 
     for key, value in subs_expr.items():
-        expr = expr.subs(key, value)
+        q, r = sympy.div(expr, key)
+        expr = value * q + r
 
     expr = sympy.simplify(expr)
     
@@ -229,7 +230,7 @@ class Expr:
         self.opt_expr = ""
         self.loss = math.inf
 
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, maxloss, fixed_cst_value = None, bound_int_params = None):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, epsloss, fixed_cst_value = None, bound_int_params = None):
         modules = ['numpy']
 
         for name, op in unary_ops.items():
@@ -305,11 +306,12 @@ class Expr:
             v = int(value_params[i]) if value_params[i] == int(value_params[i]) else value_params[i]
             self.opt_expr = self.opt_expr.subs(symbol_params[i], v)
 
-        if (self.loss < maxloss):
+        if (self.loss < epsloss):
             self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
 
             for key, value in subs_expr.items():
-                self.opt_expr = sympy.simplify(self.opt_expr.subs(key, value))
+                q, r = sympy.div(self.opt_expr, key)
+                self.opt_expr = sympy.simplify(value * q + r)
             
             s = str(self.opt_expr)
 
@@ -471,7 +473,7 @@ def eval_binary_combination(args):
         print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
-    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, maxloss, fixed_cst_value, bound_int_params)
+    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, bound_int_params)
     s = str(new_expr.opt_expr)
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
@@ -497,7 +499,7 @@ class SR:
                  maxsymbols = -1,
                  maxexpr = -1,
                  discard_previous_expr = False,
-                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False}, #True for strict symmetry
+                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False, "%": False}, #True for strict symmetry
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
