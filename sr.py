@@ -279,7 +279,7 @@ class Expr:
             p0 = [float(x) for x in value_params]
             #p0 = np.random.randn(len(p0), 1)
             
-            if (len(p0) <= len(symbol_params)):
+            if (len(p0) <= len(y)):
                 try:
                     value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, bound_int_params)
                 except TypeError as e:
