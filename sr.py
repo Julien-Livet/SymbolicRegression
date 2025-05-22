@@ -279,14 +279,15 @@ class Expr:
             p0 = [float(x) for x in value_params]
             #p0 = np.random.randn(len(p0), 1)
             
-            try:
-                value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, bound_int_params)
-            except TypeError as e:
-                print(sym_expr)
+            if (len(p0) <= len(symbol_params)):
+                try:
+                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, bound_int_params)
+                except TypeError as e:
+                    print(sym_expr)
 
-                print(e)
+                    print(e)
 
-                exit()
+                    exit()
 
             for i in range(0, len(value_params)):
                 value_params[i] = round(value_params[i] / eps) * eps
