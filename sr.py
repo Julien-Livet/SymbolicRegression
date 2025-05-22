@@ -28,26 +28,37 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
 
         return p0
 
-    best_x = [round(z) for z in value_params]
-    best_loss = loss_func(func(value_vars, *best_x), y)
-    x = best_x
+    best_x = np.zeros(len(value_params))
+    
+    try:
+        best_x = [round(z) for z in value_params]
+        best_loss = loss_func(func(value_vars, *best_x), y)
+        x = best_x
 
-    for i in range(0, maxfev):
-        try:
-            value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x) + np.array([random.randint(bound[0], bound[1]) for z in p0]), maxfev = 10 * maxfev)
-            #value_params, _ = curve_fit(func, value_vars, y, p0 = [random.randint(bound[0], bound[1]) for z in p0], maxfev = maxfev, bounds = bound)
+        for i in range(0, maxfev):
+            try:
+                value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x, dtype = float) + np.array([random.randint(bound[0], bound[1]) for z in p0]), maxfev = 10 * maxfev)
+                #value_params, _ = curve_fit(func, value_vars, y, p0 = [random.randint(bound[0], bound[1]) for z in p0], maxfev = maxfev, bounds = bound)
 
-            x = [round(z) for z in value_params]
-            loss = loss_func(func(value_vars, *x), y)
+                x = [round(z) for z in value_params]
+                loss = loss_func(func(value_vars, *x), y)
 
-            if (loss < best_loss and any(x)):
-                best_loss = loss
-                best_x = x
+                if (loss < best_loss and any(x)):
+                    best_loss = loss
+                    best_x = x
 
-                if (best_loss < eps):
-                    break
-        except RuntimeError as e:
-            pass
+                    if (best_loss < eps):
+                        break
+            except RuntimeError:
+                pass
+            except ValueError:
+                pass
+            except OverflowError:
+                pass
+    except ValueError:
+        pass
+    except OverflowError:
+        pass
 
     return best_x
 
@@ -267,7 +278,15 @@ class Expr:
         try:
             p0 = [float(x) for x in value_params]
             #p0 = np.random.randn(len(p0), 1)
-            value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, bound_int_params)
+            
+            try:
+                value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, bound_int_params)
+            except TypeError as e:
+                print(sym_expr)
+
+                print(e)
+
+                exit()
 
             for i in range(0, len(value_params)):
                 value_params[i] = round(value_params[i] / eps) * eps
