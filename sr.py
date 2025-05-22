@@ -84,7 +84,7 @@ def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-3):
 
     for key, value in subs_expr.items():
         q, r = sympy.div(expr, key)
-        expr = value * q + r
+        expr = (value * q + r).subs(key, value)
 
     expr = sympy.simplify(expr)
     
@@ -311,7 +311,7 @@ class Expr:
 
             for key, value in subs_expr.items():
                 q, r = sympy.div(self.opt_expr, key)
-                self.opt_expr = sympy.simplify(value * q + r)
+                self.opt_expr = sympy.simplify((value * q + r).subs(key, value))
             
             s = str(self.opt_expr)
 
