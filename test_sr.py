@@ -4,7 +4,7 @@ import operator
 import random
 import sr
 import sympy
-
+"""
 def sym_conv(x, y):
     return sympy.sympify("conv" + str(x) + ", " + str(y))
 
@@ -201,8 +201,8 @@ def test_circle():
     #plt.show()
 
     model = sr.SR(niterations = 2,
-                  verbose = True,
-                  checked_sym_expr = [sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2")],
+                  #verbose = True,
+                  #checked_sym_expr = [sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2")],
                   avoided_expr = [sympy.sympify("0")],
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
@@ -252,3 +252,36 @@ def test_plane():
     model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c * z + d"), sympy.symbols("x y z")))
+"""
+def test_sphere():
+    p0 = 10 * np.random.rand(3) - 5 * np.ones(3)
+    rho = 4
+    
+    x = []
+    y = []
+    z = []
+    
+    for i in range(0, 10):
+        theta = math.pi * random.random() - math.pi / 2
+        phi = 2 * math.pi * random.random()
+        x.append(p0[0] + rho * math.cos(theta) * math.cos(phi))
+        y.append(p0[1] + rho * math.cos(theta) * math.sin(phi))
+        z.append(p0[2] + rho * math.sin(theta))
+
+    x = np.array(x)
+    y = np.array(y)
+    z = np.array(z)
+
+    model = sr.SR(niterations = 3,
+                  #verbose = True,
+                  #checked_sym_expr = [sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2")],
+                  avoided_expr = [sympy.sympify("0")],
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True,
+                  epsloss = 1e-4)
+
+    model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2"), sympy.symbols("x y z")))
