@@ -684,7 +684,7 @@ class SR:
                         e = exprs[k2]
 
                         if (sym_expr_eq(e.sym_expr, ce, symbols)):
-                            print("Checked expression", ce, k1, k2)
+                            print("Checked expression", ce, k1, k2, e.opt_expr, e.loss)
 
             newExprs = []
 
@@ -766,10 +766,10 @@ class SR:
                         e = exprs[k2]
 
                         if (sym_expr_eq(e.sym_expr, ce, symbols)):
-                            print("Checked expression", ce, k1, k2)
+                            print("Checked expression", ce, k1, k2, e.opt_expr, e.loss)
 
             if (self.sort_by_loss):
-                exprs = sorted(exprs, key=lambda x: x.loss)
+                exprs = sorted(exprs, key = lambda x: x.loss)
 
             if (self.maxexpr > 0 and len(exprs) > self.maxexpr):
                 exprs = exprs[:self.maxexpr]

@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import operator
 import random
@@ -142,3 +143,112 @@ def test_sym_expr_eq():
     expr2 = c*y + d
 
     assert(not sr.sym_expr_eq(expr1, expr2, [x, y]))
+
+def test_line():
+    u = 2 * np.random.rand(2) - np.ones(2)
+    u /= np.linalg.norm(u)
+    
+    p0 = 10 * np.random.rand(2) - 5 * np.ones(2)
+    
+    x = []
+    y = []
+    
+    for i in range(0, 10):
+        t = 10 * random.random() - 5
+        p = t * u + p0
+        x.append(p[0])
+        y.append(p[1])
+    
+    x = np.array(x)
+    y = np.array(y)
+
+    #import matplotlib.pyplot as plt
+    #plt.scatter(x, y)
+    #plt.show()
+
+    model = sr.SR(niterations = 3,
+                  #verbose = True,
+                  #checked_sym_expr = [sympy.sympify("a * x + b * y + c")],
+                  avoided_expr = [sympy.sympify("0")],
+                  binary_operators = {"+": (operator.add, operator.add)},
+                  foundBreak = True,
+                  epsloss = 1e-4)
+
+    model.predict([x, y], np.zeros(len(x)), ["x", "y"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c"), sympy.symbols("x y")))
+
+def test_circle():
+    p0 = 10 * np.random.rand(2) - 5 * np.ones(2)
+    rho = 4
+    
+    x = []
+    y = []
+    
+    for i in range(0, 10):
+        theta = 2 * math.pi * random.random()
+        x.append(p0[0] + rho * math.cos(theta))
+        y.append(p0[1] + rho * math.sin(theta))
+
+    x = np.array(x)
+    y = np.array(y)
+
+    #import matplotlib.pyplot as plt
+    #ax = plt.gca()
+    #ax.set_aspect('equal', adjustable = 'box')
+    #plt.scatter(x, y)
+    #plt.show()
+
+    model = sr.SR(niterations = 2,
+                  verbose = True,
+                  checked_sym_expr = [sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2")],
+                  avoided_expr = [sympy.sympify("0")],
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True,
+                  epsloss = 1e-4)
+
+    model.predict([x, y], np.zeros(len(x)), ["x", "y"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2"), sympy.symbols("x y")))
+
+def test_plane():
+    n = 2 * np.random.rand(3) - np.ones(3)
+    n /= np.linalg.norm(n)
+    
+    u = 2 * np.random.rand(3) - np.ones(3)
+    v = np.cross(n, u)
+    v /= np.linalg.norm(v)
+    u = np.cross(v, n)
+    
+    p0 = 10 * np.random.rand(3) - 5 * np.ones(3)
+    
+    x = []
+    y = []
+    z = []
+    
+    for i in range(0, 10):
+        t1 = 10 * random.random() - 5
+        t2 = 10 * random.random() - 5
+        p = t1 * u + t2 * v + p0
+        x.append(p[0])
+        y.append(p[1])
+        z.append(p[2])
+    
+    x = np.array(x)
+    y = np.array(y)
+    z = np.array(z)
+
+    model = sr.SR(niterations = 3,
+                  #verbose = True,
+                  #checked_sym_expr = [sympy.sympify("a * x + b * y + c * z + d")],
+                  avoided_expr = [sympy.sympify("0")],
+                  binary_operators = {"+": (operator.add, operator.add)},
+                  foundBreak = True,
+                  epsloss = 1e-4)
+
+    model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
+
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c * z + d"), sympy.symbols("x y z")))
