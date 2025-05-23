@@ -186,7 +186,10 @@ def new_params(expr, symbols):
         
         for i in range(0, len(terms)):
             if (terms[i]):
-                new_symbol_params.append(newSymbol())
+                s = newSymbol()
+                while (s in new_symbol_params):
+                    s = newSymbol()
+                new_symbol_params.append(s)
                 new_value_params.append(1.0)
                 replacements[terms[i]] = new_symbol_params[-1]
                 terms[i] = new_symbol_params[-1]
@@ -195,7 +198,10 @@ def new_params(expr, symbols):
 
     if (cst != 0):
         combined_symbols.append(1)
-        new_symbol_params.append(newSymbol())
+        s = newSymbol()
+        while (s in new_symbol_params):
+            s = newSymbol()
+        new_symbol_params.append(s)
         new_value_params.append(1.0)
         terms.append(new_symbol_params[-1])
         replacements[cst] = new_symbol_params[-1]
@@ -368,15 +374,22 @@ class Expr:
         expr = copy.deepcopy(self)
         sym_op, num_op = binary_sym_num_op
 
-        a = newSymbol()
-        b = newSymbol()
-
         symbol_params = []
         other_sym_expr = other_expr.sym_expr
 
         for i in range(0, len(other_expr.symbol_params)):
-            symbol_params.append(newSymbol())
+            s = newSymbol()
+            while (s in symbol_params or s in s1):
+                s = newSymbol()
+            symbol_params.append(s)
             other_sym_expr = other_sym_expr.subs(other_expr.symbol_params[i], symbol_params[-1])
+
+        a = newSymbol()
+        while (a in symbol_params or a in s1):
+            a = newSymbol()
+        b = newSymbol()
+        while (b in symbol_params or b in s1):
+            b = newSymbol()
 
         expr.sym_expr = a * sym_op(expr.sym_expr, other_sym_expr) + b
 
@@ -422,6 +435,8 @@ class Expr:
         for node in sympy.preorder_traversal(sym_expr):
             if (isinstance(node, sympy.Function)):
                 symbol = newSymbol()
+                while (symbol in symbols):
+                    symbol = newSymbol()
                 symbols.add(symbol)
                 replaced_symbols[symbol] = str(node.func) + "(" + ", ".join([str(x) for x in node.args]) + ")"
                 replacements[node] = symbol
