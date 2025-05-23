@@ -4,7 +4,7 @@ import operator
 import random
 import sr
 import sympy
-"""
+
 def sym_conv(x, y):
     return sympy.sympify("conv" + str(x) + ", " + str(y))
 
@@ -252,7 +252,7 @@ def test_plane():
     model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c * z + d"), sympy.symbols("x y z")))
-"""
+
 def test_sphere():
     p0 = 10 * np.random.rand(3) - 5 * np.ones(3)
     rho = 4
