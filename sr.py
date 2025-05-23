@@ -354,7 +354,11 @@ class Expr:
         sym_op, num_op = unary_sym_num_op
         
         a = newSymbol()
+        while (a in expr.symbol_params):
+            a = newSymbol()
         b = newSymbol()
+        while (b in expr.symbol_params):
+            b = newSymbol()
 
         expr.sym_expr = a * sym_op(expr.sym_expr) + b
         expr.symbol_params = list(expr.symbol_params) + [a, b]
