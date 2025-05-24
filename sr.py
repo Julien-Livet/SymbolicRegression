@@ -512,8 +512,12 @@ def eval_binary_combination(args):
         print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
-    new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, bound_int_params)
-    s = str(new_expr.opt_expr)
+    
+    try:
+        new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, bound_int_params)
+        s = str(new_expr.opt_expr)
+    except ZeroDivisionError:
+        return None
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
         if (not new_expr.opt_expr in avoided_expr):
@@ -667,21 +671,25 @@ class SR:
                     
                     if (process):
                         new_expr = expr.apply_unary_op(unary_operator)
-                        new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                                  self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
+                        
+                        try:
+                            new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                                      self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
 
-                        if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
-                            if (not new_expr.opt_expr in self.avoided_expr):
-                                newExprs.append(new_expr)
-                                opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
-                                
-                                if (new_expr.loss < self.epsloss):
-                                    if (verbose):
-                                        print("Found expression:", str(new_expr.opt_expr))
+                            if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
+                                if (not new_expr.opt_expr in self.avoided_expr):
+                                    newExprs.append(new_expr)
+                                    opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
+                                    
+                                    if (new_expr.loss < self.epsloss):
+                                        if (verbose):
+                                            print("Found expression:", str(new_expr.opt_expr))
 
-                                    if (self.foundBreak):
-                                        finished = True
-                                        break
+                                        if (self.foundBreak):
+                                            finished = True
+                                            break
+                        except ZeroDivisionError:
+                            pass
                 
                 if (finished):
                     break
