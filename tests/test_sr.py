@@ -298,7 +298,6 @@ def test_gplearn():
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
                   foundBreak = True)
-    print(X_train)
 
     model.predict(X_train, y_train)
 
