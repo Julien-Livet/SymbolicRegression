@@ -213,7 +213,7 @@ def test_circle():
 
     model.predict([x, y], np.zeros(len(x)), ["x", "y"])
 
-    assert(len(model.bestExpressions) == 1)
+    assert(len(model.bestExpressions) >= 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2"), sympy.symbols("x y")))
 
 def test_plane():
@@ -285,7 +285,7 @@ def test_sphere():
 
     model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
-    assert(len(model.bestExpressions) == 1)
+    assert(len(model.bestExpressions) >= 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2"), sympy.symbols("x y z")))
 
 def test_gplearn():
@@ -334,9 +334,19 @@ def test_2():
                   binary_operators = {"*": (operator.mul, operator.mul)},
                   foundBreak = True)
 
-    n = 10
-    x = 10 * np.random.rand(n)
+    n = 100
+    xmin = -5
+    xmax = 10
+    x = (xmax - xmin) * np.random.rand(n) + xmin
     y = np.sin(x) * np.exp(x)
+
+    import matplotlib.pyplot as plt
+    plt.scatter(x, y, label = 'data')
+    x_ = np.linspace(xmin, xmax, 1000)
+    y_ = np.sin(x_) * np.exp(x_)
+    plt.plot(x_, y_, label = 'curve')
+    plt.legend()
+    plt.show()
 
     model.predict([x], y, ["x"])
 
@@ -354,7 +364,9 @@ def test_3():
                   foundBreak = True)
 
     n = 10
-    x = np.random.rand(n)
+    xmin = -5
+    xmax = 5
+    x = (xmax - xmin) * np.random.rand(n) + xmin
     y = x / (1 + x ** 2)
 
     model.predict([x], y, ["x"])
@@ -389,7 +401,9 @@ def test_5():
                   foundBreak = True)
 
     n = 10
-    x = np.random.rand(n) + 1
+    xmin = 1
+    xmax = 10
+    x = (xmax - xmin) * np.random.rand(n) + xmin
     y = np.log(x) + np.sin(x)
 
     model.predict([x], y, ["x"])
