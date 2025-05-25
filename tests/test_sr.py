@@ -285,3 +285,22 @@ def test_sphere():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2"), sympy.symbols("x y z")))
+
+def test_gplearn():
+    from sklearn.utils.random import check_random_state
+    
+    rng = check_random_state(0)
+
+    X_train = np.transpose(rng.uniform(-1, 1, 100).reshape(50, 2))
+    y_train = X_train[0, :]**2 - X_train[1, :]**2 + X_train[1, :] - 1
+    
+    model = sr.SR(niterations = 3,
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+    print(X_train)
+
+    model.predict(X_train, y_train)
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("x0**2-x1**2+x1-1"))
