@@ -5,6 +5,8 @@ import random
 import sr
 import sympy
 
+#Commented tests fail and need some work
+
 def sym_conv(x, y):
     return sympy.sympify("conv" + str(x) + ", " + str(y))
 
@@ -288,12 +290,12 @@ def test_sphere():
 
 def test_gplearn():
     from sklearn.utils.random import check_random_state
-    
+
     rng = check_random_state(0)
 
     X_train = np.transpose(rng.uniform(-1, 1, 100).reshape(50, 2))
     y_train = X_train[0, :]**2 - X_train[1, :]**2 + X_train[1, :] - 1
-    
+
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
@@ -303,3 +305,164 @@ def test_gplearn():
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x0**2-x1**2+x1-1"))
+
+def test_1():
+    #x**2+x+1
+
+    model = sr.SR(niterations = 3,
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = x ** 2 + x + 1
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("x ** 2 + x + 1"))
+"""
+def test_2():
+    #sin(x)*exp(x)
+
+    model = sr.SR(niterations = 2,
+                  #verbose = True,
+                  #checked_sym_expr = [sympy.sympify("d*sin(a*x+b)*exp(c*x+c)+f")],
+                  unary_operators = {"sin": (sympy.sin, np.sin),
+                                     "exp": (sympy.exp, np.exp)},
+                  binary_operators = {"*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = 10 * np.random.rand(n)
+    y = np.sin(x) * np.exp(x)
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("sin(x)*exp(x)"))
+"""
+"""
+def test_3():
+    #x/(1+x**2)
+
+    model = sr.SR(niterations = 3,
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul),
+                                      "/": (operator.truediv, operator.truediv)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = x / (1 + x ** 2)
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("x / (1 + x **2)"))
+"""
+def test_4():
+    #x**2+y**2
+
+    model = sr.SR(niterations = 3,
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = np.random.rand(n)
+
+    model.predict([x, y], x**2 + y **2, ["x", "y"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("x**2+y**2"))
+"""
+def test_5():
+    #log(x)+sin(x)
+
+    model = sr.SR(niterations = 2,
+                  unary_operators = {"sin": (sympy.sin, np.sin),
+                                     "log": (sympy.log, np.log)},
+                  binary_operators = {"+": (operator.add, operator.add)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n) + 1
+    y = np.log(x) + np.sin(x)
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("log(x)+sin(x)"))
+"""
+"""
+def test_6():
+    #1/sqrt(2*pi)*exp(-x**2/2)
+
+    model = sr.SR(niterations = 3,
+                  unary_operators = {"exp": (sympy.exp, np.exp)},
+                  binary_operators = {"*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = np.exp(-x**2 / 2) / math.sqrt(2 * math.pi)
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+"""
+def test_koza1():
+    #y = x**4 + x**3 + x**2 + x
+
+    model = sr.SR(niterations = 4,
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = x**4 + x**3 + x**2 + x
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**4 + x**3 + x**2 + x"))
+
+def test_nguyen1():
+    #f(x) = x**3 + x**2 + x
+
+    model = sr.SR(niterations = 4,
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = x**3 + x**2 + x
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**3 + x**2 + x"))
+"""
+def test_nguyen7():
+    #f(x) = log(x + 1) + log(x**2 + 1)
+
+    model = sr.SR(niterations = 3,
+                  unary_operators = {"log": (sympy.log, np.log)},
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  foundBreak = True)
+
+    n = 10
+    x = np.random.rand(n)
+    y = np.log(x + 1) + np.log(x ** 2 +1)
+
+    model.predict([x], y, ["x"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(model.bestExpressions[0][0] == sympy.sympify("log(x+1)+log(x**2+1)"))
+"""
