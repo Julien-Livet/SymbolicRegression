@@ -1,0 +1,18 @@
+[project]
+name = "SymbolicRegression_JulienLIVET"
+version = "0.0.1"
+authors = [
+  { name="Julien LIVET", email="julien.livet@free.fr" },
+]
+description = "A small package about symbolic regression"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/Julien-Livet/SymbolicRegression"
+Issues = "https://github.com/Julien-Livet/SymbolicRegression/issues"
