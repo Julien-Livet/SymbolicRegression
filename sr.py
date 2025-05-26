@@ -10,8 +10,80 @@ import random
 from scipy.optimize import basinhopping, brute, curve_fit, differential_evolution
 import sympy
 
-def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
-    if (bound == None):
+def random_discrete_values(n, discrete_values):
+    values = []
+
+    for i in range(0, n):
+        value = discrete_values[random.randint(0, len(discrete_values) - 1)]
+        
+        if (type(value) == str):
+            s = value
+            a, b = [float(x) for x in s[1:-1].split(",")]
+
+            assert(a <= b)
+
+            if (s[0] == "(" or s[0] == ")"):
+                a, b = int(a), int(b)
+
+                if (s[0] == ")"):
+                    a += 1
+
+                if (s[-1] == "("):
+                    b -=1
+
+                value = random.randint(a, b)
+            elif (s[0] == "[" or s[0] == "]"):
+                value = (b - a) * random.random() + a
+
+        values.append(value)
+
+    return values
+
+def round_discrete_values(values, discrete_values):
+    for i in range(0, len(values)):
+        best_diff = math.inf
+        best_value = None
+
+        for v in discrete_values:
+            if (type(v) == str):
+                s = v
+                a, b = [float(x) for x in s[1:-1].split(",")]
+
+                assert(a <= b)
+
+                if (s[0] == "(" or s[0] == ")"):
+                    a, b = int(a), int(b)
+
+                    if (s[0] == ")"):
+                        a += 1
+
+                    if (s[-1] == "("):
+                        b -=1
+
+                if (a <= values[i] and values[i] <= b):
+                    best_diff = 0
+                    best_value = int(round(values[i]))
+
+                    break
+                else:
+                    if (abs(values[i] - a) < best_diff):
+                        best_diff = abs(values[i] - a)
+                        best_value = a
+
+                    if (abs(values[i] - b) < best_diff):
+                        best_diff = abs(values[i] - b)
+                        best_value = b
+            else:
+                if (abs(values[i] - v) < best_diff):
+                    best_diff = abs(values[i] - v)
+                    best_value = v
+
+        values[i] = best_value
+
+    return values
+
+def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
+    if (len(discrete_values) == 0):
         try:
             value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
         except RuntimeError as e:
@@ -28,19 +100,17 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, bound = None):
 
         return p0
 
-    best_x = np.zeros(len(value_params))
-    
+    best_x = random_discrete_values(len(p0), discrete_values)
+
     try:
-        best_x = [round(z) for z in value_params]
         best_loss = loss_func(func(value_vars, *best_x), y)
         x = best_x
 
         for i in range(0, maxfev):
             try:
-                value_params, _ = curve_fit(func, value_vars, y, p0 = np.array(x, dtype = float) + np.array([random.randint(bound[0], bound[1]) for z in p0]), maxfev = 10 * maxfev)
-                #value_params, _ = curve_fit(func, value_vars, y, p0 = [random.randint(bound[0], bound[1]) for z in p0], maxfev = maxfev, bounds = bound)
+                value_params, _ = curve_fit(func, value_vars, y, p0 = random_discrete_values(len(p0), discrete_values), maxfev = 10 * maxfev)
 
-                x = [round(z) for z in value_params]
+                x = round_discrete_values(value_params, discrete_values)
                 loss = loss_func(func(value_vars, *x), y)
 
                 if (loss < best_loss and any(x)):
@@ -247,7 +317,7 @@ class Expr:
         self.opt_expr = ""
         self.loss = math.inf
 
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, epsloss, fixed_cst_value = None, bound_int_params = None):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, epsloss, fixed_cst_value = None, discrete_param_values = []):
         modules = ['numpy']
 
         for name, op in unary_ops.items():
@@ -287,7 +357,7 @@ class Expr:
             
             if (len(p0) <= len(y)):
                 try:
-                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, bound_int_params)
+                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, discrete_param_values)
                 except TypeError as e:
                     print(sym_expr)
 
@@ -490,7 +560,7 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, bound_int_params, groupId, taskId, process_sym_expr, symbols, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, shared_finished = args
 
     if (shared_finished.value):
         return None
@@ -514,7 +584,7 @@ def eval_binary_combination(args):
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
     
     try:
-        new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, bound_int_params)
+        new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, discrete_param_values)
         s = str(new_expr.opt_expr)
     except ZeroDivisionError:
         return None
@@ -556,7 +626,7 @@ class SR:
                  extra_start_sym_expr = [],
                  fixed_cst_value = None,
                  maxtask = -1,
-                 bound_int_params = None,
+                 discrete_param_values = [],
                  process_sym_expr = None):
         self.niterations = niterations
         self.unary_operators = unary_operators
@@ -581,7 +651,7 @@ class SR:
         self.extra_start_sym_expr = extra_start_sym_expr
         self.fixed_cst_value = fixed_cst_value
         self.maxtask = maxtask
-        self.bound_int_params = bound_int_params
+        self.discrete_param_values = discrete_param_values
         self.process_sym_expr = process_sym_expr
         
         assert(self.eps > 0)
@@ -617,13 +687,13 @@ class SR:
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
+                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
             
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
+                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         self.expressions = opt_exprs
@@ -674,7 +744,7 @@ class SR:
                         
                         try:
                             new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                                      self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.bound_int_params)
+                                                      self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
 
                             if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
                                 if (not new_expr.opt_expr in self.avoided_expr):
@@ -752,7 +822,7 @@ class SR:
                                                 self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
-                                                self.bound_int_params, groupId, len(tasks) - n + len(newTasks),
+                                                self.discrete_param_values, groupId, len(tasks) - n + len(newTasks),
                                                 self.process_sym_expr, symbols, shared_finished))
 
                         if (self.maxtask > 0):
