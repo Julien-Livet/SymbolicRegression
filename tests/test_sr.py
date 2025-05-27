@@ -75,7 +75,7 @@ def test_sym_expr_eq_8():
     assert(not sr.sym_expr_eq(expr1, expr2, [x]))
 """
 def test_sym_expr_eq_9():
-    a, b, c, d, e, f, x, y = sympy.symbols('a b c d e f x y')
+    a, b, c, d, e, f, g, h, x, y = sympy.symbols('a b c d e f g h x y')
 
     expr1 = sympy.sympify("a*log(b*x+c)+d")
     expr2 = sympy.sympify("e+log(g+x*h)*f")
