@@ -10,6 +10,78 @@ import sympy
 def sym_conv(x, y):
     return sympy.sympify("conv" + str(x) + ", " + str(y))
 
+def test_sym_expr_eq_1():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = 1
+    expr2 = 2
+
+    assert(not sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_2():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = 1
+    expr2 = d
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_3():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+    
+    expr1 = b + 1
+    expr2 = d - 2
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_4():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = a*x + b
+    expr2 = c*x + d
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_5():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = a*x + b
+    expr2 = c*y + d
+
+    assert(not sr.sym_expr_eq(expr1, expr2, [x, y]))
+
+def test_sym_expr_eq_6():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = (1+a)*x + b + 3
+    expr2 = (2+c)*x + d
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_7():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = x + a*x + b + 3
+    expr2 = 2*x + c*x + d - 1
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_8():
+    a, b, c, d, e, f, x, y = sympy.symbols('a b c d e f x y')
+
+    expr1 = a*x**2 + 3*x + c
+    expr2 = d*x**2 + 2*x + f
+
+    assert(not sr.sym_expr_eq(expr1, expr2, [x]))
+"""
+def test_sym_expr_eq_9():
+    a, b, c, d, e, f, x, y = sympy.symbols('a b c d e f x y')
+
+    expr1 = sympy.sympify("a*log(b*x+c)+d")
+    expr2 = sympy.sympify("e+log(g+x*h)*f")
+
+    assert(sym_expr_eq(expr1, expr2, [x]))
+"""
 def test_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   unary_operators = {"-": (operator.neg, operator.neg)},
@@ -133,19 +205,6 @@ def test_pysr():
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5")))
 
-def test_sym_expr_eq():
-    a, b, c, d, x, y = sympy.symbols('a b c d x y')
-
-    expr1 = a*x + b
-    expr2 = c*x + d
-
-    assert(sr.sym_expr_eq(expr1, expr2, [x]))
-
-    expr1 = a*x + b
-    expr2 = c*y + d
-
-    assert(not sr.sym_expr_eq(expr1, expr2, [x, y]))
-
 def test_line():
     u = 2 * np.random.rand(2) - np.ones(2)
     u /= np.linalg.norm(u)
@@ -169,8 +228,8 @@ def test_line():
     #plt.show()
 
     model = sr.SR(niterations = 3,
-                  #verbose = True,
-                  #checked_sym_expr = [sympy.sympify("a * x + b * y + c")],
+                  verbose = True,
+                  checked_sym_expr = [sympy.sympify("a * x + b * y + c")],
                   avoided_expr = [sympy.sympify("0")],
                   binary_operators = {"+": (operator.add, operator.add)},
                   foundBreak = True,
