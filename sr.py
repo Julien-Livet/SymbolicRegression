@@ -145,31 +145,165 @@ def round_val(x, eps):
     else:
         return r
 
-def sym_expr_eq(expr1, expr2, symbols = []):
-    expr1 = sympy.expand(expr1)
-    expr2 = sympy.expand(expr2)
+def symplify_sym_expr(expr, symbols): 
+    expr = sympy.collect(expr, expr_terms(expr, symbols))
+    
+    for arg in expr.args:
+        expr = expr.subs(arg, symplify_sym_expr(arg, symbols))
+    
+    expr = sympy.simplify(expr)
 
-    poly1 = sympy.Poly(expr1, *symbols)
-    poly2 = sympy.Poly(expr2, *symbols)
+    if (expr.is_Add):
+        nums = []
+        ws_exprs = []
+        wos_exprs = []
+        
+        for arg in expr.args:
+            if arg.is_Number:
+                nums.append(arg)
+            else:
+                found = False
+                
+                for s in symbols:
+                    if (arg.has(s)):
+                        found = True
+                        break
+                
+                if (found):    
+                    ws_exprs.append(arg)
+                else:
+                    wos_exprs.append(arg)
 
-    if (poly1 == None or poly2 == None):
-        return False
+        if (len(wos_exprs)):
+            for n in nums:
+                expr = expr.subs(n, 0)
 
-    if (set(poly1.monoms()) != set(poly2.monoms())):
-        return False
+            for e in wos_exprs[1:]:
+                expr = expr.subs(e, 0)
+            
+            expr = expr.subs(wos_exprs[0], newSymbol())
+            
+            expr = sympy.simplify(expr)
+    elif (expr.is_Mul):
+        nums = []
+        ws_exprs = []
+        wos_exprs = []
+        
+        for arg in expr.args:
+            if arg.is_Number:
+                nums.append(arg)
+            else:
+                found = False
+                
+                for s in symbols:
+                    if (arg.has(s)):
+                        found = True
+                        break
+                
+                if (found):    
+                    ws_exprs.append(arg)
+                else:
+                    wos_exprs.append(arg)
 
-    for i in range(0, len(poly1.coeffs())):
-        if (poly1.coeffs()[i].is_Number and poly2.coeffs()[i].is_Number):
-            if (poly1.coeffs()[i] != poly2.coeffs()[i]):
+        if (len(wos_exprs)):
+            for n in nums:
+                expr = expr.subs(n, 1)
+
+            for e in wos_exprs[1:]:
+                expr = expr.subs(e, 1)
+            
+            expr = expr.subs(wos_exprs[0], newSymbol())
+            
+            expr = sympy.simplify(expr)
+
+    return expr
+
+def same_ast_structure(expr1, expr2, symbols):
+    if type(expr1) != type(expr2):
+        if not ((expr1.is_Number and expr2.is_Symbol)
+                or (expr2.is_Number and expr1.is_Symbol)):
+            return False
+    else:
+        if (expr1.is_Symbol):
+            if (expr1 in symbols or expr2 in symbols):
+                if (expr1 != expr2):
+                    return False
+        elif (expr1.is_number):
+            if (expr1 != expr2):
                 return False
 
-    return True
+    if len(expr1.args) != len(expr2.args):
+        return False
 
-def symbol_expr(expr: sympy.Expr, symbols = []):
-    if (isinstance(expr, sympy.Symbol) and expr in symbols):
-        return True
+    args1 = expr1.args
+    
+    if (len(args1)):
+        e = [expr_terms(arg, symbols) for arg in args1]
+        e, args1 = list(zip(*sorted(zip(e, args1), key = lambda x: str(x[0]))))
         
-    return all(sym_expr_eq(x) for x in expr.args)
+    args2 = expr2.args
+    
+    if (len(args2)):
+        e = [expr_terms(arg, symbols) for arg in args2]
+        e, args2 = list(zip(*sorted(zip(e, args2), key = lambda x: str(x[0]))))
+
+    return all(same_ast_structure(a1, a2, symbols) for a1, a2 in zip(args1, args2))
+
+def expr_terms(expr, symbols):
+    terms = []
+
+    if (expr.is_Add):
+        return [expr_terms(a, symbols)[0] for a in expr.args]
+    elif (expr.is_Mul):
+        numbers = []
+        syms = []
+        has_expr = False
+
+        for arg in expr.args:
+            if arg.is_Number:
+                numbers.append(arg)
+            elif arg.is_Symbol:
+                syms.append(arg)
+            else:
+                has_expr = True
+
+        e = expr
+        l = len(syms)
+        syms = list(set(syms) - set(symbols))
+
+        if (has_expr):
+            for n in numbers:
+                e = e.subs(n, 1)
+
+            for s in syms:
+                e = e.subs(s, 1)
+
+            e = sympy.simplify(e)
+        else:
+            if (l):
+                for n in numbers:
+                    e = e.subs(n, 1)
+
+                for s in syms:
+                    e = e.subs(s, 1)
+
+                e = sympy.simplify(e)
+
+        terms = [e]
+    else:
+        terms.append(expr)
+
+    return terms
+
+def sym_expr_eq(a, b, symbols = []):
+    a = sympy.expand(sympy.sympify(a))
+    a = symplify_sym_expr(a, symbols)
+    a = sympy.expand(a)
+    b = sympy.expand(sympy.sympify(b))
+    b = symplify_sym_expr(b, symbols)
+    b = sympy.expand(b)
+
+    return same_ast_structure(a, b, symbols)
 
 def expr_eq(expr1, expr2, subs_expr = {}, eps = 1e-3):
     expr = sympy.factor(sympy.sympify(expr1 - expr2))

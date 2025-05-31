@@ -73,20 +73,70 @@ def test_sym_expr_eq_8():
     expr2 = d*x**2 + 2*x + f
 
     assert(not sr.sym_expr_eq(expr1, expr2, [x]))
-"""
+
 def test_sym_expr_eq_9():
     a, b, c, d, e, f, g, h, x, y = sympy.symbols('a b c d e f g h x y')
 
     expr1 = sympy.sympify("a*log(b*x+c)+d")
     expr2 = sympy.sympify("e+log(g+x*h)*f")
 
-    assert(sym_expr_eq(expr1, expr2, [x]))
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_10():
+    a, b, c, d, e, f, g, h, x, y = sympy.symbols('a b c d e f g h x y')
+
+    expr1 = sympy.sympify("a*log(b*x+c)+d")
+    expr2 = sympy.sympify("e+log(g+y*h)*f")
+
+    assert(not sr.sym_expr_eq(expr1, expr2, [x, y]))
+
+def test_sym_expr_eq_11():
+    a, b, c, d, e, f, g, h, x, y = sympy.symbols('a b c d e f g h x y')
+
+    expr1 = sympy.sympify("a*log(b*x+c+2*x)+d")
+    expr2 = sympy.sympify("e+log(g+x*(1+h))*f")
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_12():
+    a, b, c, d, e, f, g, h, x, y = sympy.symbols('a b c d e f g h x y')
+
+    expr1 = sympy.sympify("a*x+2*d")
+    expr2 = sympy.sympify("b*c*x+e*f")
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
+
+def test_sym_expr_eq_13():
+    a, b, c, d, e, f, g, h, x, y = sympy.symbols('a b c d e f g h x y')
+
+    expr1 = sympy.sympify("a*log(x)+2*d")
+    expr2 = sympy.sympify("b*log(x)+2*log(x)+e*f")
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x]))
 """
+def test_sym_expr_eq_14():
+    expr1 = sympy.sympify("_71*sin(_0*x + _1) + _72*exp(_62)*exp(_61*x) + _73*exp(_62)*exp(_61*x)*sin(_0*x + _1) + _74")
+    expr2 = sympy.sympify("i*(a*sin(b*x+c)+d)*(e*exp(f*x+g)+h)+j")
+
+    assert(sr.sym_expr_eq(expr1, expr2, [sympy.Symbol("x")]))
+"""
+def test_sym_expr_eq_15():
+    a, b, c, d, x, y = sympy.symbols('a b c d x y')
+
+    expr1 = a * x + b * y  + c
+    expr2 = 2. * y + 3. * x + 4.
+
+    assert(sr.sym_expr_eq(expr1, expr2, [x, y]))
+
+def test_sym_expr_eq_16():
+    expr1 = sympy.sympify("0.574406*x**2 - 0.858382*x + 0.574406*y**2 + 2.342802*y - 6.454")
+    expr2 = sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 - R ** 2)")
+
+    assert(sr.sym_expr_eq(expr1, expr2, sympy.symbols("x y")))
+
 def test_x1_mul_x2():
     model = sr.SR(niterations = 3,
-                  unary_operators = {"-": (operator.neg, operator.neg)},
-                  binary_operators = {"+": (operator.add, operator.add),
-                                      "*": (operator.mul, operator.mul)},
+                  binary_operators = {"*": (operator.mul, operator.mul)},
                   foundBreak = True)
     #unary_operators = {"-": operator.neg,
     #                   "abs": (sympy.Abs, operator.abs),
@@ -118,9 +168,7 @@ def test_x1_mul_x2():
 
 def test_x1_add_x2():
     model = sr.SR(niterations = 3,
-                  unary_operators = {"-": (operator.neg, operator.neg)},
-                  binary_operators = {"+": (operator.add, operator.add),
-                                      "*": (operator.mul, operator.mul)},
+                  binary_operators = {"+": (operator.add, operator.add)},
                   foundBreak = True)
 
     n = 10
@@ -136,7 +184,6 @@ def test_x1_add_x2():
 
 def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model = sr.SR(niterations = 3,
-                  unary_operators = {"-": (operator.neg, operator.neg)},
                   binary_operators = {"*": (operator.mul, operator.mul)},
                   foundBreak = True)
 
@@ -263,7 +310,7 @@ def test_circle():
 
     model = sr.SR(niterations = 2,
                   #verbose = True,
-                  #checked_sym_expr = [sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2")],
+                  #checked_sym_expr = [sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 - R ** 2)")],
                   avoided_expr = [sympy.sympify("0")],
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
@@ -273,7 +320,7 @@ def test_circle():
     model.predict([x, y], np.zeros(len(x)), ["x", "y"])
 
     assert(len(model.bestExpressions) >= 1)
-    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 - R ** 2"), sympy.symbols("x y")))
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 - R ** 2)"), sympy.symbols("x y")))
 
 def test_plane():
     n = 2 * np.random.rand(3) - np.ones(3)
@@ -337,7 +384,7 @@ def test_sphere():
 
     model = sr.SR(niterations = 3,
                   #verbose = True,
-                  #checked_sym_expr = [sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2")],
+                  #checked_sym_expr = [sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2)")],
                   avoided_expr = [sympy.sympify("0")],
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
@@ -347,7 +394,7 @@ def test_sphere():
     model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
     assert(len(model.bestExpressions) >= 1)
-    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("(x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2"), sympy.symbols("x y z")))
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2)"), sympy.symbols("x y z")))
 
 def test_gplearn():
     from sklearn.utils.random import check_random_state
@@ -387,9 +434,12 @@ def test_1():
 def test_2():
     #sin(x)*exp(x)
 
-    model = sr.SR(niterations = 2,
-                  #verbose = True,
-                  #checked_sym_expr = [sympy.sympify("d*sin(a*x+b)*exp(c*x+c)+f")],
+    model = sr.SR(niterations = 1,
+                  verbose = True,
+                  checked_sym_expr = [#sympy.sympify("a*sin(b*x+c)+d"),
+                                      #sympy.sympify("e*exp(f*x+g)+h"),
+                                      sympy.sympify("i*(a*sin(b*x+c)+d)*(e*exp(f*x+g)+h)+j"),
+                                      ],
                   unary_operators = {"sin": (sympy.sin, np.sin),
                                      "exp": (sympy.exp, np.exp)},
                   binary_operators = {"*": (operator.mul, operator.mul)},
@@ -416,6 +466,7 @@ def test_2():
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("sin(x)*exp(x)"))
 """
+"""
 def test_3():
     #x/(1+x**2)
 
@@ -437,7 +488,7 @@ def test_3():
 
     assert(len(model.bestExpressions) >= 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x / (1 + x **2)"))
-
+"""
 def test_4():
     #x**2+y**2
 
