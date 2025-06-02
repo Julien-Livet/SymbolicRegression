@@ -10,6 +10,30 @@ import random
 from scipy.optimize import basinhopping, brute, curve_fit, differential_evolution
 import sympy
 
+def range_discrete_values(discrete_values):
+    type_, min_, max_ = int, math.inf, -math.inf
+    
+    for value in discrete_values:
+        if (type(value) is float):
+            type_ = float
+            min_ = min(min_, value)
+            max_ = max(max_, value)
+        elif (type(value) == str):
+            s = value
+            a, b = [float(x) for x in s[1:-1].split(",")]
+
+            assert(a <= b)
+            
+            if (s[0] == "(" or s[0] == ")"):
+                a, b = int(a), int(b)
+            elif (s[0] == "[" or s[0] == "]"):
+                type_ = float
+
+            min_ = min(min_, a)
+            max_ = max(max_, b)
+    
+    return type_, min_, max_
+
 def random_discrete_values(n, discrete_values):
     values = []
 
@@ -93,6 +117,30 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
 
         return value_params
 
+    type_, min_, max_ = range_discrete_values(discrete_values)
+    
+    import optuna
+    
+    def float_objective(trial):
+        x = [trial.suggest_float('x' + str(i), min_, max_) for i in range(0, len(p0))]
+        return loss_func(func(value_vars, *x), y)
+
+    def int_objective(trial):
+        x = [trial.suggest_int('x' + str(i), min_, max_) for i in range(0, len(p0))]
+        return loss_func(func(value_vars, *x), y)
+
+    study = optuna.create_study()
+    
+    if (type_ == int):
+        study.optimize(int_objective, n_trials = maxfev)
+    else:
+        study.optimize(float_objective, n_trials = maxfev)
+    
+    value_params = list(study.best_params.values())
+    value_params = round_discrete_values(value_params, discrete_values)
+
+    return value_params
+    """
     try:
         value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
     except RuntimeError as e:
@@ -131,6 +179,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
         pass
 
     return best_x
+    """
 
 def split_list(lst, n):
     k, m = divmod(len(lst), n)
@@ -145,8 +194,10 @@ def round_val(x, eps):
     else:
         return r
 
-def symplify_sym_expr(expr, symbols): 
-    expr = sympy.collect(expr, expr_terms(expr, symbols))
+def symplify_sym_expr(expr, symbols):
+    e = expr_terms(expr, symbols)
+    e = sorted(e, key = str)    
+    expr = sympy.collect(expr, e)
     
     for arg in expr.args:
         expr = expr.subs(arg, symplify_sym_expr(arg, symbols))
@@ -357,73 +408,12 @@ def model_func(func):
     return model
 
 def new_params(expr, symbols):
-    new_symbol_params = []
-    new_value_params = []
+    e = symplify_sym_expr(expr, symbols)
 
-    combined_symbols = set()
+    new_symbol_params = list(e.free_symbols - set(symbols))
+    new_value_params = np.ones(len(new_symbol_params))
 
-    poly = expr.as_poly(*symbols)
-    degree = 0
-
-    if (poly == None):
-        return (new_symbol_params, new_value_params, expr, {})
-
-    cst = poly.coeff_monomial(1)
-
-    poly = poly - cst
-
-    for s in symbols:
-        degree = max(degree, poly.degree(s))
-
-    for d in range(1, degree + 1):
-        for comb in itertools.combinations_with_replacement(symbols, d):
-            combined_symbols.add(sympy.Mul(*sorted(comb, key = str)))
-
-    combined_symbols = list(combined_symbols)
-    replacements = {}
-
-    terms = []
-
-    if (expr - cst == 0):
-        terms = [0 for s in combined_symbols]
-    else:
-        p = sympy.Poly(expr - cst, combined_symbols)
-        term_dict = p.as_dict()
-        monomes = list(itertools.product(*[range(p.degree(v) + 1) for v in combined_symbols]))
-        del monomes[0]
-
-        monomes_symboliques = [
-            sympy.Mul(*[var**exp for var, exp in zip(combined_symbols, exposants)])
-            for exposants in monomes
-        ]
-
-        terms = [term_dict.get(exp, 0) for exp in monomes]
-
-        for i in range(0, len(terms)):
-            if (terms[i]):
-                s = newSymbol()
-                while (s in new_symbol_params):
-                    s = newSymbol()
-                new_symbol_params.append(s)
-                new_value_params.append(1.0)
-                replacements[terms[i]] = new_symbol_params[-1]
-                terms[i] = new_symbol_params[-1]
-
-        combined_symbols = monomes_symboliques
-
-    if (cst != 0):
-        combined_symbols.append(1)
-        s = newSymbol()
-        while (s in new_symbol_params):
-            s = newSymbol()
-        new_symbol_params.append(s)
-        new_value_params.append(1.0)
-        terms.append(new_symbol_params[-1])
-        replacements[cst] = new_symbol_params[-1]
-
-    expr = sum(c * m for c, m in zip(terms, combined_symbols))
-
-    return (new_symbol_params, new_value_params, expr, replacements)
+    return (new_symbol_params, new_value_params, e)
 
 class Expr:
     def __init__(self, symbol_var = None, value_var = None, expr = None, symbol_vars = None, value_vars = None):
@@ -644,63 +634,14 @@ class Expr:
     def simplify(self):
         sym_expr = sympy.expand(self.sym_expr)
 
-        new_symbol_params = self.symbol_params
-        new_value_params = self.value_params
-        replacements = {}
-
-        symbols = set(copy.deepcopy(self.symbol_vars))
-        replaced_symbols = {}
-
-        for node in sympy.preorder_traversal(sym_expr):
-            if (isinstance(node, sympy.Function)):
-                symbol = newSymbol()
-                while (symbol in symbols):
-                    symbol = newSymbol()
-                symbols.add(symbol)
-                replaced_symbols[symbol] = str(node.func) + "(" + ", ".join([str(x) for x in node.args]) + ")"
-                replacements[node] = symbol
-
-        symbols = list(symbols)
-
-        n_p = new_params(sym_expr.xreplace(replacements), symbols)
-
-        original_symbol_params = copy.deepcopy(new_symbol_params)
-        original_value_params = copy.deepcopy(new_value_params)
-
-        new_symbol_params = n_p[0]
-        new_value_params = n_p[1]
-
-        for k, v in replaced_symbols.items():
-            try:
-                i = new_symbol_params.index(k)
-                del new_symbol_params[i]
-                del new_value_params[i]
-            except ValueError:
-                pass
-
+        n_p = new_params(sym_expr, self.symbol_vars)
+        print(self.sym_expr)
+        self.symbol_params = n_p[0]
+        self.value_params = n_p[1]
         self.sym_expr = n_p[2]
-        replacements = n_p[3]
-
-        for key, value in replaced_symbols.items():
-            self.sym_expr = self.sym_expr.subs(key, value)
-
-        self.symbol_params = copy.deepcopy(new_symbol_params)
-        self.value_params = np.array(new_value_params)
-
-        for k, v in replacements.items():
-            try:
-                i = original_symbol_params.index(k)
-                del original_symbol_params[i]
-                del original_value_params[i]
-            except ValueError:
-                pass
-
-        free_symbols = self.sym_expr.free_symbols
-
-        for i in range(0, len(original_symbol_params)):
-            if (original_symbol_params[i] in free_symbols and not original_symbol_params[i] in self.symbol_params):
-                self.symbol_params.append(original_symbol_params[i])
-                self.value_params = np.array(list(self.value_params) + [original_value_params[i]])
+        print(self.symbol_params)
+        print(self.value_params)
+        print(self.sym_expr)
 
         return self
 
