@@ -69,6 +69,8 @@ def all_values_discrete_values(discrete_values):
             assert(a <= b)
 
             if (s[0] == "(" or s[0] == ")"):
+                a, b = int(a), int(b)
+
                 all_values += list(range(a, b + 1))
             elif (s[0] == "[" or s[0] == "]"):
                 all_values += list(np.linspace(a, b, 100))
