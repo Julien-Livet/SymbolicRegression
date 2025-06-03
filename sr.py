@@ -7,12 +7,56 @@ from multiprocessing import cpu_count, Manager
 import numpy as np
 import operator
 import random
-from scipy.optimize import basinhopping, brute, curve_fit, differential_evolution
+import scipy.optimize
 import sympy
+
+def expression_complexity(expr, weights = None):
+    if (weights is None):
+        weights = {
+            sympy.Add: 1,
+            sympy.Mul: 2,
+            sympy.Pow: 3,
+            sympy.log: 3,
+            sympy.exp: 3,
+            sympy.sin: 3,
+            sympy.cos: 3,
+            sympy.tan: 3,
+            sympy.sqrt: 3,
+            sympy.Symbol: 1,
+            sympy.Number: 1,
+        }
+
+    def traverse(e):
+        n_nodes = 1
+        depth = 1
+        total_weight = weights.get(type(e), 1)
+
+        if (hasattr(e, 'args') and e.args):
+            child_depths = []
+
+            for arg in e.args:
+                sub = traverse(arg)
+                n_nodes += sub['n_nodes']
+                total_weight += sub['total_weight']
+                child_depths.append(sub['depth'])
+
+            depth += max(child_depths) if child_depths else 0
+
+        return {'n_nodes': n_nodes, 'depth': depth, 'total_weight': total_weight}
+
+    variables = list(expr.free_symbols)
+
+    result = traverse(expr)
+    result.update({
+        'n_variables': len(variables),
+        'n_symbols': len(str(expr))
+    })
+
+    return result
 
 def range_discrete_values(discrete_values):
     type_, min_, max_ = int, math.inf, -math.inf
-    
+
     for value in discrete_values:
         if (type(value) is float):
             type_ = float
@@ -23,7 +67,7 @@ def range_discrete_values(discrete_values):
             a, b = [float(x) for x in s[1:-1].split(",")]
 
             assert(a <= b)
-            
+
             if (s[0] == "(" or s[0] == ")"):
                 a, b = int(a), int(b)
             elif (s[0] == "[" or s[0] == "]"):
@@ -31,7 +75,7 @@ def range_discrete_values(discrete_values):
 
             min_ = min(min_, a)
             max_ = max(max_, b)
-    
+
     return type_, min_, max_
 
 def random_discrete_values(n, discrete_values):
@@ -109,7 +153,7 @@ def round_discrete_values(values, discrete_values):
 def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
     if (len(discrete_values) == 0):
         try:
-            value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
+            value_params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
         except RuntimeError as e:
             print(e)
 
@@ -118,68 +162,54 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
         return value_params
 
     type_, min_, max_ = range_discrete_values(discrete_values)
-    
-    import optuna
-    
-    def float_objective(trial):
-        x = [trial.suggest_float('x' + str(i), min_, max_) for i in range(0, len(p0))]
-        return loss_func(func(value_vars, *x), y)
 
-    def int_objective(trial):
-        x = [trial.suggest_int('x' + str(i), min_, max_) for i in range(0, len(p0))]
-        return loss_func(func(value_vars, *x), y)
-
-    study = optuna.create_study()
-    
+    """
     if (type_ == int):
-        study.optimize(int_objective, n_trials = maxfev)
-    else:
-        study.optimize(float_objective, n_trials = maxfev)
-    
-    value_params = list(study.best_params.values())
+        value_params = scipy.optimize.brute(lambda x: loss_func(func(value_vars, *[int(z) for z in x]), y), [[min_, max_] for x in p0], Ns = max_ - min_ + 1)
+
     value_params = round_discrete_values(value_params, discrete_values)
 
     return value_params
     """
-    try:
-        value_params, _ = curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
-    except RuntimeError as e:
-        print(e)
 
-        return p0
+    from deap import base, creator, tools, algorithms
 
-    best_x = random_discrete_values(len(p0), discrete_values)
+    creator.create("FitnessMin", base.Fitness, weights = (-1.0,))
+    creator.create("Individual", list, fitness = creator.FitnessMin)
 
-    try:
-        best_loss = loss_func(func(value_vars, *best_x), y)
-        x = best_x
+    def evaluate(individual):
+        return loss_func(func(value_vars, *individual), y),
 
-        for i in range(0, maxfev):
-            try:
-                value_params, _ = curve_fit(func, value_vars, y, p0 = random_discrete_values(len(p0), discrete_values), maxfev = 10 * maxfev)
+    def random_param():
+        return [random.randint(l, u) for l, u in zip([min_] * len(p0), [max_] * len(p0))]
 
-                x = round_discrete_values(value_params, discrete_values)
-                loss = loss_func(func(value_vars, *x), y)
+    toolbox = base.Toolbox()
+    toolbox.register("individual", tools.initIterate, creator.Individual, random_param)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
-                if (loss < best_loss and any(x)):
-                    best_loss = loss
-                    best_x = x
+    toolbox.register("evaluate", evaluate)
+    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mutate", tools.mutUniformInt, low = [min_] * len(p0), up = [max_] * len(p0), indpb = 0.2)
+    toolbox.register("select", tools.selTournament, tournsize = 3)
 
-                    if (best_loss < eps):
-                        break
-            except RuntimeError:
-                pass
-            except ValueError:
-                pass
-            except OverflowError:
-                pass
-    except ValueError:
-        pass
-    except OverflowError:
-        pass
+    random.seed(0)
+    population = toolbox.population(n = maxfev)
+    hof = tools.HallOfFame(1)
 
-    return best_x
-    """
+    algorithms.eaSimple(
+        population,
+        toolbox,
+        cxpb = 0.5,
+        mutpb = 0.2,
+        ngen = 30,
+        halloffame = hof,
+        verbose = False
+    )
+
+    value_params = hof[0]
+    value_params = round_discrete_values(value_params, discrete_values)
+
+    return value_params
 
 def split_list(lst, n):
     k, m = divmod(len(lst), n)
@@ -196,31 +226,31 @@ def round_val(x, eps):
 
 def symplify_sym_expr(expr, symbols):
     e = expr_terms(expr, symbols)
-    e = sorted(e, key = str)    
+    e = sorted(e, key = str)
     expr = sympy.collect(expr, e)
-    
+
     for arg in expr.args:
         expr = expr.subs(arg, symplify_sym_expr(arg, symbols))
-    
+
     expr = sympy.simplify(expr)
 
     if (expr.is_Add):
         nums = []
         ws_exprs = []
         wos_exprs = []
-        
+
         for arg in expr.args:
             if arg.is_Number:
                 nums.append(arg)
             else:
                 found = False
-                
+
                 for s in symbols:
                     if (arg.has(s)):
                         found = True
                         break
-                
-                if (found):    
+
+                if (found):
                     ws_exprs.append(arg)
                 else:
                     wos_exprs.append(arg)
@@ -231,27 +261,27 @@ def symplify_sym_expr(expr, symbols):
 
             for e in wos_exprs[1:]:
                 expr = expr.subs(e, 0)
-            
+
             expr = expr.subs(wos_exprs[0], newSymbol())
-            
+
             expr = sympy.simplify(expr)
     elif (expr.is_Mul):
         nums = []
         ws_exprs = []
         wos_exprs = []
-        
+
         for arg in expr.args:
             if arg.is_Number:
                 nums.append(arg)
             else:
                 found = False
-                
+
                 for s in symbols:
                     if (arg.has(s)):
                         found = True
                         break
-                
-                if (found):    
+
+                if (found):
                     ws_exprs.append(arg)
                 else:
                     wos_exprs.append(arg)
@@ -262,9 +292,9 @@ def symplify_sym_expr(expr, symbols):
 
             for e in wos_exprs[1:]:
                 expr = expr.subs(e, 1)
-            
+
             expr = expr.subs(wos_exprs[0], newSymbol())
-            
+
             expr = sympy.simplify(expr)
 
     return expr
@@ -287,13 +317,13 @@ def same_ast_structure(expr1, expr2, symbols):
         return False
 
     args1 = expr1.args
-    
+
     if (len(args1)):
         e = [expr_terms(arg, symbols) for arg in args1]
         e, args1 = list(zip(*sorted(zip(e, args1), key = lambda x: str(x[0]))))
-        
+
     args2 = expr2.args
-    
+
     if (len(args2)):
         e = [expr_terms(arg, symbols) for arg in args2]
         e, args2 = list(zip(*sorted(zip(e, args2), key = lambda x: str(x[0]))))
@@ -399,7 +429,12 @@ def newSymbol():
     return sympy.Symbol("_" + str(i))
 
 def mse_loss(x, y):
-    return np.sum((x - y) ** 2)
+    z = np.sum((x - y) ** 2)
+
+    if (np.isnan(z)):
+        return np.inf
+
+    return z
 
 def model_func(func):
     def model(x, *args):
@@ -635,13 +670,10 @@ class Expr:
         sym_expr = sympy.expand(self.sym_expr)
 
         n_p = new_params(sym_expr, self.symbol_vars)
-        print(self.sym_expr)
+
         self.symbol_params = n_p[0]
         self.value_params = n_p[1]
         self.sym_expr = n_p[2]
-        print(self.symbol_params)
-        print(self.value_params)
-        print(self.sym_expr)
 
         return self
 
@@ -671,9 +703,11 @@ def eval_binary_combination(args):
 
     try:
         new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, discrete_param_values)
-        s = str(new_expr.opt_expr)
     except ZeroDivisionError:
         return None
+
+    if (verbose):
+        print("Compute optimal expression (" + str(len(new_expr.sym_expr.free_symbols - set(symbols))) + " parameters): " + str(new_expr.sym_expr), str(new_expr.opt_expr))
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
         if (not new_expr.opt_expr in avoided_expr):
@@ -713,7 +747,8 @@ class SR:
                  fixed_cst_value = None,
                  maxtask = -1,
                  discrete_param_values = [],
-                 process_sym_expr = None):
+                 process_sym_expr = None,
+                 op_weights = None):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -739,6 +774,7 @@ class SR:
         self.maxtask = maxtask
         self.discrete_param_values = discrete_param_values
         self.process_sym_expr = process_sym_expr
+        self.op_weights = op_weights
 
         assert(self.eps > 0)
 
@@ -813,6 +849,8 @@ class SR:
 
             newExprs = []
 
+            exprs_to_process = []
+
             for name, unary_operator in self.unary_operators.items():
                 for expr in exprs:
                     process = True
@@ -826,26 +864,31 @@ class SR:
                                 break
 
                     if (process):
-                        new_expr = expr.apply_unary_op(unary_operator)
+                        exprs_to_process.append((expr, unary_operator))
 
-                        try:
-                            new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                                      self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
+            exprs_to_process = sorted(exprs_to_process, key = lambda x: expression_complexity(x[0].sym_expr, self.op_weights)["total_weight"])
 
-                            if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
-                                if (not new_expr.opt_expr in self.avoided_expr):
-                                    newExprs.append(new_expr)
-                                    opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
+            for expr in exprs_to_process:
+                new_expr = expr[0].apply_unary_op(expr[1])
 
-                                    if (new_expr.loss < self.epsloss):
-                                        if (verbose):
-                                            print("Found expression:", str(new_expr.opt_expr))
+                try:
+                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                              self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
 
-                                        if (self.foundBreak):
-                                            finished = True
-                                            break
-                        except ZeroDivisionError:
-                            pass
+                    if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
+                        if (not new_expr.opt_expr in self.avoided_expr):
+                            newExprs.append(new_expr)
+                            opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
+
+                            if (new_expr.loss < self.epsloss):
+                                if (self.verbose):
+                                    print("Found expression:", str(new_expr.opt_expr))
+
+                                if (self.foundBreak):
+                                    finished = True
+                                    break
+                except ZeroDivisionError:
+                    pass
 
                 if (finished):
                     break
@@ -918,6 +961,9 @@ class SR:
 
                         if (self.verbose):
                             print("Operator " + name + " group #" + str(groupId) + " with " + str(len(tasks) - n) + " tasks")
+
+                tasks = sorted(tasks, key = lambda x: expression_complexity(x[0].sym_expr, self.op_weights)["total_weight"]
+                                                      + expression_complexity(x[1].sym_expr, self.op_weights)["total_weight"])
 
                 results = []
 
