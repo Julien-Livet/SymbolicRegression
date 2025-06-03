@@ -54,12 +54,37 @@ def expression_complexity(expr, weights = None):
 
     return result
 
+def all_values_discrete_values(discrete_values):
+    all_values = []
+
+    for value in discrete_values:
+        if (type(value) is float):
+            all_values.append(value)
+        elif (type(value) is int):
+            all_values.append(value)
+        elif (type(value) == str):
+            s = value
+            a, b = [float(x) for x in s[1:-1].split(",")]
+
+            assert(a <= b)
+
+            if (s[0] == "(" or s[0] == ")"):
+                all_values += list(range(a, b + 1))
+            elif (s[0] == "[" or s[0] == "]"):
+                all_values += list(np.linspace(a, b, 100))
+
+    return all_values
+
 def range_discrete_values(discrete_values):
     type_, min_, max_ = int, math.inf, -math.inf
 
     for value in discrete_values:
         if (type(value) is float):
             type_ = float
+            min_ = min(min_, value)
+            max_ = max(max_, value)
+        elif (type(value) is int):
+            type_ = int
             min_ = min(min_, value)
             max_ = max(max_, value)
         elif (type(value) == str):
@@ -162,15 +187,22 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
         return value_params
 
     type_, min_, max_ = range_discrete_values(discrete_values)
+    all_values = all_values_discrete_values(discrete_values)
 
-    """
-    if (type_ == int):
-        value_params = scipy.optimize.brute(lambda x: loss_func(func(value_vars, *[int(z) for z in x]), y), [[min_, max_] for x in p0], Ns = max_ - min_ + 1)
+    if (len(all_values) ** len(p0) < 1e6):
+        grid = list(itertools.product(all_values, repeat = len(p0)))
 
-    value_params = round_discrete_values(value_params, discrete_values)
+        best_loss = math.inf
+        value_params = None
 
-    return value_params
-    """
+        for params in grid:
+            l = loss_func(func(value_vars, *params), y)
+            
+            if (l < best_loss):
+                best_loss = l
+                value_params = params
+
+        return np.array(value_params)
 
     from deap import base, creator, tools, algorithms
 
@@ -180,16 +212,24 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
     def evaluate(individual):
         return loss_func(func(value_vars, *individual), y),
 
-    def random_param():
+    def int_random_param():
         return [random.randint(l, u) for l, u in zip([min_] * len(p0), [max_] * len(p0))]
+        
+    def float_random_param():
+        return [random.uniform(l, u) for l, u in zip([min_] * len(p0), [max_] * len(p0))]
 
     toolbox = base.Toolbox()
-    toolbox.register("individual", tools.initIterate, creator.Individual, random_param)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+    
+    if (type_ == int):
+        toolbox.register("individual", tools.initIterate, creator.Individual, int_random_param)
+        toolbox.register("mutate", tools.mutUniformInt, low = [min_] * len(p0), up = [max_] * len(p0), indpb = 0.2)
+    else:
+        toolbox.register("individual", tools.initIterate, creator.Individual, float_random_param)
+        toolbox.register("mutate", tools.mutPolynomialBounded, eta = 1, low = [min_] * len(p0), up = [max_] * len(p0), indpb = 0.2)
 
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("evaluate", evaluate)
     toolbox.register("mate", tools.cxTwoPoint)
-    toolbox.register("mutate", tools.mutUniformInt, low = [min_] * len(p0), up = [max_] * len(p0), indpb = 0.2)
     toolbox.register("select", tools.selTournament, tournsize = 3)
 
     random.seed(0)

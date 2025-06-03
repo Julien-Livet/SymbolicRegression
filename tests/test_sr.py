@@ -254,11 +254,11 @@ def test_pysr():
 
 def test_line():
     u = 2 * np.random.rand(2) - np.ones(2)
-    u = np.array([1., 2., 3.])
+    u = np.array([1., 2.])
     u /= np.linalg.norm(u)
 
     p0 = 10 * np.random.rand(2) - 5 * np.ones(2)
-    p0 = np.array([1., 2.])
+    p0 = np.array([3., 4.])
 
     x = []
     y = []
@@ -331,7 +331,7 @@ def test_plane():
     n /= np.linalg.norm(n)
 
     u = 2 * np.random.rand(3) - np.ones(3)
-    #n = np.array([2., -3., 4.])
+    u = np.array([-4., 5., -6.])
     v = np.cross(n, u)
     v /= np.linalg.norm(v)
     u = np.cross(v, n)
@@ -533,15 +533,18 @@ def test_5():
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("log(x)+sin(x)"))
-"""
+
 def test_6():
     #1/sqrt(2*pi)*exp(-x**2/2)
+
+    eps = 1e-6
 
     model = sr.SR(niterations = 3,
                   unary_operators = {"exp": (sympy.exp, np.exp)},
                   binary_operators = {"*": (operator.mul, operator.mul)},
                   discrete_param_values = [1 / math.sqrt(2 * math.pi), 0, -0.5],
-                  foundBreak = True)
+                  foundBreak = True,
+                  eps = eps)
 
     n = 100
     x = np.random.rand(n)
@@ -550,7 +553,8 @@ def test_6():
     model.predict([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
-"""
+    assert(sr.expr_eq(model.bestExpressions[0][0], 1 / math.sqrt(2 * math.pi) * sympy.sympify("exp(-x**2/2)"), eps = eps))
+
 def test_koza1():
     #y = x**4 + x**3 + x**2 + x
 
