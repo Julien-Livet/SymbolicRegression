@@ -782,3 +782,23 @@ def test_keijzer10():
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x1**x2"))
+"""
+def test_primes():
+    model = sr.SR(niterations = 2,
+                  unary_operators = {"log": (sympy.log, np.log)},
+                  binary_operators = {"+": (operator.add, operator.add),
+                                      "*": (operator.mul, operator.mul)},
+                  discrete_param_values = ["(-1, 1)"],
+                  #verbose = True,
+                  foundBreak = True)
+
+    n = 100
+    x = np.array(list(range(2, n + 1)))
+    y = list(sympy.primerange(sympy.prime(x[0]), sympy.prime(x[-1]) + 1))
+
+    model.predict([x], y, ["n"])
+
+    assert(len(model.bestExpressions) == 1)
+    #n*log(n) + n - log(n) - log(n - 1)**2 + 1
+    #assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("n*log(n)+n*log(log(n))-n"))
+"""

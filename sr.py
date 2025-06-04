@@ -471,16 +471,16 @@ def newSymbol():
     return sympy.Symbol("_" + str(i))
 
 def mse_loss(x, y):
-    z = np.sum((x - y) ** 2)
+    l = np.sum((x - y) ** 2)
 
-    if (np.isnan(z)):
+    if (np.isnan(l)):
         return np.inf
 
-    return z
+    return l
 
 def model_func(func):
     def model(x, *args):
-        return np.array(func(*x, *args))
+        return np.array(func(*x, *args), dtype = np.float64)
 
     return model
 
@@ -748,14 +748,14 @@ def eval_binary_combination(args):
     except ZeroDivisionError:
         return None
 
-    if (verbose):
-        print("Compute optimal expression (" + str(len(new_expr.sym_expr.free_symbols - set(symbols))) + " parameters): " + str(new_expr.sym_expr), str(new_expr.opt_expr))
+    #if (verbose):
+    #    print("Compute optimal expression (" + str(len(new_expr.sym_expr.free_symbols - set(symbols))) + " parameters): " + str(new_expr.sym_expr), str(new_expr.opt_expr), str(new_expr.loss))
 
     if (maxloss <= 0 or new_expr.loss <= maxloss):
         if (not new_expr.opt_expr in avoided_expr):
             if (new_expr.loss < epsloss and foundBreak):
                 if (verbose):
-                    print("Found expression:", str(new_expr.opt_expr))
+                    print("Found expression:", str(new_expr.opt_expr), new_expr.loss)
 
                 shared_finished.value = True
 
@@ -825,6 +825,8 @@ class SR:
         self.lastIteration = -1
 
     def predict(self, X, y, variable_names = []):
+        y = np.array(y, dtype = np.float64)
+        
         self.lastIteration = -1
         self.expressions = []
 
@@ -924,7 +926,7 @@ class SR:
 
                             if (new_expr.loss < self.epsloss):
                                 if (self.verbose):
-                                    print("Found expression:", str(new_expr.opt_expr))
+                                    print("Found expression:", str(new_expr.opt_expr), new_expr.loss)
 
                                 if (self.foundBreak):
                                     finished = True
@@ -1030,6 +1032,8 @@ class SR:
                 exprs += newExprs
 
             if (self.verbose):
+                print("Best expression", min(opt_exprs, key = opt_exprs.get))
+        
                 for k1 in range(0, len(self.checked_sym_expr)):
                     ce = self.checked_sym_expr[k1]
 
