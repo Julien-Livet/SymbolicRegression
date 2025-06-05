@@ -54,6 +54,21 @@ def expression_complexity(expr, weights = None):
 
     return result
 
+def all_delta_discrete_values(discrete_values):
+    all_values = all_values_discrete_values(discrete_values)
+    
+    all_delta = {}
+    n = len(all_values)
+    
+    for i in range(n):
+        for j in range(n):
+            diff = all_values[i] - all_values[j]
+            s = all_delta.get(all_values[j], set())
+            s.add(diff)
+            all_delta[all_values[j]] = s
+
+    return all_delta
+
 def all_values_discrete_values(discrete_values):
     all_values = []
 
@@ -177,7 +192,7 @@ def round_discrete_values(values, discrete_values):
 
     return values
 
-def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
+def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = [], sym_expr = None):
     if (len(discrete_values) == 0):
         try:
             value_params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
@@ -190,7 +205,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
 
     type_, min_, max_ = range_discrete_values(discrete_values)
     all_values = all_values_discrete_values(discrete_values)
-
+    
     if (len(all_values) ** len(p0) < 1e6):
         grid = list(itertools.product(all_values, repeat = len(p0)))
 
@@ -494,6 +509,8 @@ def new_params(expr, symbols):
 
 class Expr:
     def __init__(self, symbol_var = None, value_var = None, expr = None, symbol_vars = None, value_vars = None):
+        self.op_tree = []
+            
         if (expr and symbol_vars and value_vars):
             self.symbol_vars = []
             self.value_vars = []
@@ -569,7 +586,7 @@ class Expr:
 
             if (len(p0) <= len(y)):
                 try:
-                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, discrete_param_values)
+                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, discrete_param_values, sym_expr) #TODO: remove sym_expr arg
                 except TypeError as e:
                     print(sym_expr)
 
@@ -650,6 +667,7 @@ class Expr:
         assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
 
         expr.simplify()
+        expr.op_tree.append(sym_op)
 
         return expr
 
@@ -681,7 +699,7 @@ class Expr:
 
         expr.symbol_vars += other_expr.symbol_vars
         expr.value_vars += other_expr.value_vars
-
+        
         seen = set()
         unique_symbols = []
         unique_values = []
@@ -698,13 +716,13 @@ class Expr:
         expr.symbol_params += symbol_params + [a, b]
         expr.value_params = list(expr.value_params) + list(other_expr.value_params) + list(np.array([1.0, 0.0]))
 
-        assert(len(expr.symbol_params) == len(expr.value_params))
-        assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
-
         expr.simplify()
 
         assert(len(expr.symbol_params) == len(expr.value_params))
         assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
+        
+        expr.op_tree += other_expr.op_tree
+        expr.op_tree.append(sym_op)
 
         return expr
 
@@ -720,7 +738,7 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, operator_depth, shared_finished = args
 
     if (shared_finished.value):
         return None
@@ -740,6 +758,13 @@ def eval_binary_combination(args):
 
     if (verbose):
         print("Operator " + name + " group #" + str(groupId) + " task #" + str(taskId))
+
+    depth1 = expr1.op_tree.count(binary_operator[0])
+    depth2 = expr2.op_tree.count(binary_operator[0])
+    
+    if (depth1 >= operator_depth.get(name, math.inf)
+        or depth2 >= operator_depth.get(name, math.inf)):
+        return None
 
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
 
@@ -790,7 +815,8 @@ class SR:
                  maxtask = -1,
                  discrete_param_values = [],
                  process_sym_expr = None,
-                 op_weights = None):
+                 op_weights = None,
+                 operator_depth = {}):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -817,6 +843,7 @@ class SR:
         self.discrete_param_values = discrete_param_values
         self.process_sym_expr = process_sym_expr
         self.op_weights = op_weights
+        self.operator_depth = operator_depth
 
         assert(self.eps > 0)
 
@@ -908,34 +935,37 @@ class SR:
                                 break
 
                     if (process):
-                        exprs_to_process.append((expr, unary_operator))
+                        exprs_to_process.append((expr, unary_operator, name))
 
             exprs_to_process = sorted(exprs_to_process, key = lambda x: expression_complexity(x[0].sym_expr, self.op_weights)["total_weight"])
 
             for expr in exprs_to_process:
-                new_expr = expr[0].apply_unary_op(expr[1])
+                depth = expr[0].op_tree.count(expr[1][0])
 
-                try:
-                    new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                              self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
+                if (depth < self.operator_depth.get(expr[2], math.inf)):
+                    new_expr = expr[0].apply_unary_op(expr[1])
 
-                    if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
-                        if (not new_expr.opt_expr in self.avoided_expr):
-                            newExprs.append(new_expr)
-                            opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
+                    try:
+                        new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
+                                                  self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
 
-                            if (new_expr.loss < self.epsloss):
-                                if (self.verbose):
-                                    print("Found expression:", str(new_expr.opt_expr), new_expr.loss)
+                        if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
+                            if (not new_expr.opt_expr in self.avoided_expr):
+                                newExprs.append(new_expr)
+                                opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
 
-                                if (self.foundBreak):
-                                    finished = True
-                                    break
-                except ZeroDivisionError:
-                    pass
+                                if (new_expr.loss < self.epsloss):
+                                    if (self.verbose):
+                                        print("Found expression:", str(new_expr.opt_expr), new_expr.loss)
 
-                if (finished):
-                    break
+                                    if (self.foundBreak):
+                                        finished = True
+                                        break
+                    except ZeroDivisionError:
+                        pass
+
+                    if (finished):
+                        break
 
             if (len(self.unary_operators)):
                 if (self.discard_previous_expr):
@@ -996,7 +1026,7 @@ class SR:
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
                                                 self.discrete_param_values, groupId, len(tasks) - n + len(newTasks),
-                                                self.process_sym_expr, symbols, shared_finished))
+                                                self.process_sym_expr, symbols, self.operator_depth, shared_finished))
 
                         if (self.maxtask > 0):
                             newTasks = newTasks[:self.maxtask]
@@ -1032,7 +1062,7 @@ class SR:
                 exprs += newExprs
 
             if (self.verbose):
-                print("Best expression", min(opt_exprs, key = opt_exprs.get))
+                print("Best expression", min(opt_exprs, key = opt_exprs.get), min(opt_exprs.values()))
         
                 for k1 in range(0, len(self.checked_sym_expr)):
                     ce = self.checked_sym_expr[k1]

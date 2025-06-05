@@ -214,7 +214,7 @@ def test_a_mul_x1_add_b():
     model.predict(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
-    print(model.bestExpressions)
+
     assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify(str(a) + "*x1+" + str(b))))
 
 def test_a_mul_x2_add_b_mul_x2_add_c():
@@ -790,7 +790,9 @@ def test_primes():
                                       "*": (operator.mul, operator.mul)},
                   discrete_param_values = ["(-1, 1)"],
                   #verbose = True,
-                  foundBreak = True)
+                  #maxfev = 10000,
+                  #foundBreak = True,
+                  operator_depth = {"log": 2, "*": 2, "+": 3})
 
     n = 100
     x = np.array(list(range(2, n + 1)))
@@ -799,6 +801,5 @@ def test_primes():
     model.predict([x], y, ["n"])
 
     assert(len(model.bestExpressions) == 1)
-    #n*log(n) + n - log(n) - log(n - 1)**2 + 1
-    #assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("n*log(n)+n*log(log(n))-n"))
+    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("n*log(n + 1) + n + log(n - 1) - log(n + 1)*log(n**2 + n + 1) + log(n**2 - n - 1)"))
 """
