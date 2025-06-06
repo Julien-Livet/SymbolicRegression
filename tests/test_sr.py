@@ -10,6 +10,12 @@ import sympy
 def sym_conv(x, y):
     return sympy.sympify("conv(" + str(x) + ", " + str(y) + ")")
 
+def sym_inv_(x):
+    return sympy.sympify("inv_(" + str(x) + ")")
+
+def num_inv_(x):
+    return 1 / x
+
 def test_sym_expr_eq_1():
     a, b, c, d, x, y = sympy.symbols('a b c d x y')
 
@@ -144,6 +150,7 @@ def test_x1_mul_x2():
     #                   "sqrt": (sympy.sqrt, np.sqrt),
     #                   "cos": (sympy.cos, np.cos),
     #                   "sin": (sympy.sin, np.sin),
+    #                   "inv_": (sym_inv_, num_inv_),
     #                   "log": (sympy.log, np.log),
     #                   "exp": (sympy.exp, np.exp)}
     #binary_operators = {"+": (operator.add, operator.add),

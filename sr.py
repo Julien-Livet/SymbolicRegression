@@ -558,15 +558,16 @@ class Expr:
         for name, op in unary_ops.items():
             sym_op, num_op = op
 
-            if (type(sym_op) == sympy.Function):
-                modules.append({str(sym_op): num_op})
+            #if (type(sym_op) == sympy.Function):
+            if (name.isidentifier()):
+                modules.append({name: num_op})
 
         for name, op in binary_ops.items():
             sym_op, num_op = op
 
             #if (type(sym_op) == sympy.core.function.UndefinedFunction):
-            if (name.isalnum()):
-                modules.append({str(sym_op): num_op})
+            if (name.isidentifier()):
+                modules.append({name: num_op})
 
         symbol_params = copy.deepcopy(self.symbol_params)
         value_params = list(copy.deepcopy(self.value_params))
