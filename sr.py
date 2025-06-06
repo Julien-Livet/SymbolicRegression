@@ -192,7 +192,23 @@ def round_discrete_values(values, discrete_values):
 
     return values
 
-def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = [], sym_expr = None):
+def eaSimpleWithElitism(population, toolbox, cxpb, mutpb, ngen, elite_size=1):
+    bests = []
+
+    for gen in range(ngen):
+        offspring = algorithms.varAnd(population, toolbox, cxpb, mutpb)
+        fits = list(map(toolbox.evaluate, offspring))
+
+        for ind, fit in zip(offspring, fits):
+            ind.fitness.values = fit
+
+        elite = tools.selBest(population, elite_size)
+        population = tools.selBest(offspring + elite, len(population))
+        bests.append(tools.selBest(population, 1)[0])
+
+    return population, bests
+
+def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
     if (len(discrete_values) == 0):
         try:
             value_params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
@@ -205,7 +221,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = [], s
 
     type_, min_, max_ = range_discrete_values(discrete_values)
     all_values = all_values_discrete_values(discrete_values)
-    
+
     if (len(all_values) ** len(p0) < 1e6):
         grid = list(itertools.product(all_values, repeat = len(p0)))
 
@@ -249,21 +265,11 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = [], s
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("select", tools.selTournament, tournsize = 3)
 
-    random.seed(0)
     population = toolbox.population(n = maxfev)
-    hof = tools.HallOfFame(1)
 
-    algorithms.eaSimple(
-        population,
-        toolbox,
-        cxpb = 0.5,
-        mutpb = 0.2,
-        ngen = 30,
-        halloffame = hof,
-        verbose = False
-    )
+    pop, bests = eaSimpleWithElitism(pop, toolbox, cxpb = 0.5, mutpb = 0.2, ngen=100)
+    value_params = tools.selBest(pop, 1)[0]
 
-    value_params = hof[0]
     value_params = round_discrete_values(value_params, discrete_values)
 
     return value_params
@@ -586,7 +592,7 @@ class Expr:
 
             if (len(p0) <= len(y)):
                 try:
-                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, discrete_param_values, sym_expr) #TODO: remove sym_expr arg
+                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, discrete_param_values)
                 except TypeError as e:
                     print(sym_expr)
 
@@ -699,7 +705,7 @@ class Expr:
 
         expr.symbol_vars += other_expr.symbol_vars
         expr.value_vars += other_expr.value_vars
-        
+
         seen = set()
         unique_symbols = []
         unique_values = []
