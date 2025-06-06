@@ -244,6 +244,7 @@ def test_pysr():
                   unary_operators = {"cos": (sympy.cos, np.cos)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
+                  operator_depth = {"cos": 1},
                   foundBreak = True,
                   eps = 1e-6)
 
@@ -648,6 +649,7 @@ def test_nguyen5():
                                      "sin": (sympy.sin, np.sin)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
+                  operator_depth = {"sin": 1, "cos": 1},
                   discrete_param_values = ["(-1, 1)"],
                   foundBreak = True)
 
@@ -670,6 +672,7 @@ def test_nguyen6():
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
                   discrete_param_values = ["(0, 1)"],
+                  operator_depth = {"sin": 1},
                   foundBreak = True)
 
     n = 100
@@ -690,6 +693,7 @@ def test_nguyen7():
                   unary_operators = {"log": (sympy.log, np.log)},
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
+                  operator_depth = {"log": 1},
                   discrete_param_values = ["(0, 1)"],
                   foundBreak = True)
 
@@ -729,6 +733,7 @@ def test_nguyen9():
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
                   discrete_param_values = ["(0, 1)"],
+                  operator_depth = {"sin": 1},
                   foundBreak = True)
 
     n = 100
@@ -751,6 +756,7 @@ def test_nguyen10():
                                      "sin": (sympy.sin, np.sin)},
                   binary_operators = {"*": (operator.mul, operator.mul)},
                   discrete_param_values = ["(0, 2)"],
+                  operator_depth = {"sin": 1, "cos": 1},
                   foundBreak = True)
 
     n = 100
@@ -792,7 +798,7 @@ def test_primes():
                   #verbose = True,
                   #maxfev = 10000,
                   #foundBreak = True,
-                  operator_depth = {"log": 2, "*": 2, "+": 3})
+                  operator_depth = {"log": 2, "*": 4, "+": 4})
 
     n = 100
     x = np.array(list(range(2, n + 1)))
