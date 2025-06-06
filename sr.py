@@ -3,7 +3,7 @@ from deap import base, creator, tools, algorithms
 import itertools
 import math
 import multiprocessing
-from multiprocessing import cpu_count, Manager
+import multiprocessing.dummy
 import numpy as np
 import operator
 import random
@@ -265,7 +265,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
     toolbox.register("mate", tools.cxTwoPoint)
     toolbox.register("select", tools.selTournament, tournsize = 3)
 
-    population = toolbox.population(n = maxfev)
+    pop = toolbox.population(n = maxfev)
 
     pop, bests = eaSimpleWithElitism(pop, toolbox, cxpb = 0.5, mutpb = 0.2, ngen=100)
     value_params = tools.selBest(pop, 1)[0]
@@ -1000,7 +1000,7 @@ class SR:
             tasks = []
             groups = split_list(exprs, len(exprs) // self.group_expr_size + 1) if self.group_expr_size > 0 else [exprs]
 
-            with Manager() as manager:
+            with multiprocessing.Manager() as manager:
                 shared_finished = manager.Value('b', False)
 
                 for name, binary_operator in self.binary_operators.items():
@@ -1049,8 +1049,8 @@ class SR:
 
                 shared_value = manager.Value('i', symbolIndex)
 
-                with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = cpu_count()) as pool:
-                #with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = cpu_count()) as pool:
+                #with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
+                with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                     results = pool.map(eval_binary_combination, tasks)
                 #for t in tasks:
                 #    results.append(eval_binary_combination(t))

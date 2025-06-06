@@ -8,7 +8,7 @@ import sympy
 #Commented tests fail and need some work
 
 def sym_conv(x, y):
-    return sympy.sympify("conv" + str(x) + ", " + str(y))
+    return sympy.sympify("conv(" + str(x) + ", " + str(y) + ")")
 
 def test_sym_expr_eq_1():
     a, b, c, d, x, y = sympy.symbols('a b c d x y')
