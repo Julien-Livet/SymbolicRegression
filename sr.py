@@ -267,7 +267,7 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
 
     pop = toolbox.population(n = maxfev)
 
-    pop, bests = eaSimpleWithElitism(pop, toolbox, cxpb = 0.5, mutpb = 0.2, ngen=100)
+    pop, bests = eaSimpleWithElitism(pop, toolbox, cxpb = 0.5, mutpb = 0.2, ngen = 100)
     value_params = tools.selBest(pop, 1)[0]
 
     value_params = round_discrete_values(value_params, discrete_values)
@@ -745,7 +745,7 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, maxsymbols, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, operator_depth, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, operator_depth, callback, shared_finished = args
 
     if (shared_finished.value):
         return None
@@ -783,7 +783,10 @@ def eval_binary_combination(args):
     #if (verbose):
     #    print("Compute optimal expression (" + str(len(new_expr.sym_expr.free_symbols - set(symbols))) + " parameters): " + str(new_expr.sym_expr), str(new_expr.opt_expr), str(new_expr.loss))
 
-    if (maxloss <= 0 or new_expr.loss <= maxloss):
+    if (callback):
+        callback(new_expr, y)
+
+    if (new_expr.loss <= maxloss):
         if (not new_expr.opt_expr in avoided_expr):
             if (new_expr.loss < epsloss and foundBreak):
                 if (verbose):
@@ -802,8 +805,7 @@ class SR:
                  binary_operators = {},
                  elementwise_loss = mse_loss,
                  foundBreak = False,
-                 maxloss = -1,
-                 maxsymbols = -1,
+                 maxloss = math.inf,
                  maxexpr = -1,
                  discard_previous_expr = False,
                  symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False, "%": False}, #True for strict symmetry
@@ -823,14 +825,15 @@ class SR:
                  discrete_param_values = [],
                  process_sym_expr = None,
                  op_weights = None,
-                 operator_depth = {}):
+                 operator_depth = {},
+                 callback = None,
+                 maxcomplexity = -1):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
         self.elementwise_loss = elementwise_loss
         self.foundBreak = foundBreak
         self.maxloss = maxloss
-        self.maxsymbols = maxsymbols
         self.maxexpr = maxexpr
         self.discard_previous_expr = discard_previous_expr
         self.symmetric_binary_operators = symmetric_binary_operators
@@ -851,6 +854,8 @@ class SR:
         self.process_sym_expr = process_sym_expr
         self.op_weights = op_weights
         self.operator_depth = operator_depth
+        self.callback = callback
+        self.maxcomplexity = maxcomplexity
 
         assert(self.eps > 0)
 
@@ -956,7 +961,10 @@ class SR:
                         new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
                                                   self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
 
-                        if (self.maxloss <= 0 or new_expr.loss <= self.maxloss):
+                        if (self.callback):
+                            self.callback(new_expr, y)
+
+                        if (new_expr.loss <= self.maxloss):
                             if (not new_expr.opt_expr in self.avoided_expr):
                                 newExprs.append(new_expr)
                                 opt_exprs[str(new_expr.opt_expr)] = new_expr.loss
@@ -1029,11 +1037,11 @@ class SR:
 
                             for i2 in indices2:
                                 newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
-                                                self.elementwise_loss, self.maxloss, self.maxsymbols, self.verbose,
+                                                self.elementwise_loss, self.maxloss, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
                                                 self.discrete_param_values, groupId, len(tasks) - n + len(newTasks),
-                                                self.process_sym_expr, symbols, self.operator_depth, shared_finished))
+                                                self.process_sym_expr, symbols, self.operator_depth, self.callback, shared_finished))
 
                         if (self.maxtask > 0):
                             newTasks = newTasks[:self.maxtask]
@@ -1050,11 +1058,18 @@ class SR:
 
                 shared_value = manager.Value('i', symbolIndex)
 
-                #with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
-                with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
-                    results = pool.map(eval_binary_combination, tasks)
-                #for t in tasks:
-                #    results.append(eval_binary_combination(t))
+                import _pickle
+
+                try:
+                    with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
+                        results = pool.map(eval_binary_combination, tasks)
+                except _pickle.PicklingError:
+                    try:
+                        with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
+                            results = pool.map(eval_binary_combination, tasks) 
+                    except BrokenPipeError:
+                        for t in tasks:
+                            results.append(eval_binary_combination(t))
 
                 finished = shared_finished.value
 
@@ -1079,6 +1094,18 @@ class SR:
 
                         if (sym_expr_eq(e.sym_expr, ce, symbols)):
                             print("Checked expression", ce, k1, k2, e.opt_expr, e.loss)
+
+            if (self.maxcomplexity > 0):
+                exprs = sorted(exprs, key = lambda x: expression_complexity(x.sym_expr, self.op_weights)["total_weight"])
+                i = len(exprs) - 1
+
+                while (i > 0):
+                    if (expression_complexity(exprs[i].sym_expr, self.op_weights)["total_weight"] <= self.maxcomplexity):
+                        break
+
+                    i -= 1
+
+                exprs = exprs[:i]
 
             if (self.sort_by_loss):
                 exprs = sorted(exprs, key = lambda x: x.loss)
