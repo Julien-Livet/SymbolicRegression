@@ -483,9 +483,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
     value_params = tools.selBest(pop, 1)[0]
 
     value_params = round_discrete_values(value_params, discrete_values)
-    
-    print("Final expression", sym_expr.subs(dict(zip(symbol_params, value_params))))
-            
+
     return value_params
 
 def split_list(lst, n):
