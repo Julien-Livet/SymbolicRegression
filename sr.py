@@ -9,6 +9,8 @@ import operator
 import random
 import scipy.optimize
 import sympy
+import torch
+import torch.nn as nn
 
 def expression_complexity(expr, weights = None):
     if (weights is None):
@@ -208,7 +210,16 @@ def eaSimpleWithElitism(population, toolbox, cxpb, mutpb, ngen, elite_size=1):
 
     return population, bests
 
-def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
+def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_values = []):
+    try:
+        f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
+    except SyntaxError as e:
+        print(e)
+
+        return
+
+    func = model_func(f)
+
     if (len(discrete_values) == 0):
         try:
             value_params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
@@ -222,7 +233,10 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
     type_, min_, max_ = range_discrete_values(discrete_values)
     all_values = all_values_discrete_values(discrete_values)
 
-    if (len(all_values) ** len(p0) < 1e6):
+    brute_force_limit = 5e6
+
+    #Step #1: exhaustive algorithm
+    if (len(all_values) ** len(p0) < brute_force_limit):
         grid = list(itertools.product(all_values, repeat = len(p0)))
 
         best_loss = math.inf
@@ -234,10 +248,206 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
             if (l < best_loss):
                 best_loss = l
                 value_params = params
+                
+                if (best_loss < epsloss):
+                    break
 
         return np.array(value_params)
 
-    from deap import base, creator, tools, algorithms
+    value_params = random_discrete_values(len(p0), discrete_values)
+
+    #Step #2: remove additive constants and consider (-1, 0, 1) space for exhaustive algorithm
+    sym_expr_wo_csts, csts = remove_add_cst_sym_expr(sym_expr, symbol_vars, 1)
+    symbol_params_wo_csts = list(set(symbol_params) - set(csts))
+
+    try:
+        f = sympy.lambdify(symbol_vars + symbol_params_wo_csts, sym_expr_wo_csts, modules = modules)
+    except SyntaxError as e:
+        print(e)
+
+        return
+
+    func = model_func(f)
+    n = len(symbol_params_wo_csts)
+
+    #Search in range (-1, 0, 1) without additive constants
+    if (len((-1, 0, 1)) ** n < brute_force_limit):
+        grid = list(itertools.product((-1, 0, 1), repeat = n))
+
+        best_loss = math.inf
+        value_params = None
+
+        for params in grid:
+            l = loss_func(func(value_vars, *params), y)
+
+            if (l < best_loss):
+                best_loss = l
+                value_params = params
+
+        p1 = np.array(value_params)
+
+        #Do another exploration by removing null parameters
+        pos_values = [0]
+        neg_values = [0]
+
+        for v in all_values:
+            if (v > 0):
+                pos_values.append(v)
+            elif (v < 0):
+                neg_values.append(v)
+
+        sym_expr_wo_csts, csts = remove_add_cst_sym_expr(sym_expr, symbol_vars, 0)
+        se_wo_csts = copy.deepcopy(sym_expr_wo_csts)
+        sp_wo_csts = copy.deepcopy(symbol_params_wo_csts)
+        params_value = []
+        removed_sym = set()
+
+        for i in range(0, len(symbol_params_wo_csts)):
+            if (p1[i] == 0):
+                se_wo_csts = se_wo_csts.subs(symbol_params_wo_csts[i], 0)
+                del sp_wo_csts[sp_wo_csts.index(symbol_params_wo_csts[i])]
+                removed_sym.add(symbol_params_wo_csts[i])
+            elif (p1[i] > 0):
+                params_value.append(pos_values)
+            else:#elif (p1[i] < 0):
+                params_value.append(neg_values)
+
+        se_wo_csts = se_wo_csts.subs(sympy.zoo, 0)
+
+        for i in reversed(range(0, len(sp_wo_csts))):
+            if (not sp_wo_csts[i] in se_wo_csts.free_symbols):
+                p1[symbol_params_wo_csts.index(sp_wo_csts[i])] = 0
+                removed_sym.add(sp_wo_csts[i])
+                del params_value[i]
+                del sp_wo_csts[i]
+                
+        se_w_csts = sym_expr.subs(dict(zip(removed_sym, [0] * len(removed_sym))))
+
+        for i in reversed(range(0, len(symbol_params))):
+            if (not symbol_params[i] in se_w_csts.free_symbols):
+                removed_sym.add(symbol_params[i])
+
+        sp = list(set(symbol_params) - removed_sym)
+
+        try:
+            f = sympy.lambdify(symbol_vars + sp, se_w_csts, modules = modules)
+        except SyntaxError as e:
+            print(e)
+
+            return
+
+        func = model_func(f)
+        n = len(sp)
+
+        #Search in range (-1, 0, 1) with additive constants
+        if (len((-1, 0, 1)) ** n >= brute_force_limit):
+            value_params = random_discrete_values(len(p0), discrete_values)
+        else:
+            grid = list(itertools.product((-1, 0, 1), repeat = n))
+
+            best_loss = math.inf
+            value_params = None
+
+            for params in grid:
+                l = loss_func(func(value_vars, *params), y)
+
+                if (l < best_loss):
+                    best_loss = l
+                    value_params = params
+
+            p2 = np.array(value_params)
+
+            se_w_csts = copy.deepcopy(se_w_csts)
+            sp_w_csts = copy.deepcopy(sp)
+            params_value = []
+            removed_sym = set()
+
+            for i in range(0, len(sp)):
+                if (p2[i] == 0):
+                    se_w_csts = se_w_csts.subs(sp[i], 0)
+                    del sp_w_csts[sp_w_csts.index(sp[i])]
+                    removed_sym.add(sp[i])
+                elif (p2[i] > 0):
+                    params_value.append(pos_values)
+                else:#elif (p2[i] < 0):
+                    params_value.append(neg_values)
+
+            se_w_csts = se_w_csts.subs(sympy.zoo, 0)
+
+            for i in reversed(range(0, len(sp))):
+                if (not sp[i] in se_w_csts.free_symbols):
+                    p2[sp.index(sp_w_csts[i])] = 0
+                    removed_sym.add(sp_w_csts[i])
+                    del params_value[i]
+                    del sp_w_csts[i]
+                    
+            for i in range(0, len(symbol_params)):
+                if (not symbol_params[i] in se_w_csts.free_symbols):
+                    removed_sym.add(symbol_params[i])
+
+            se_w_csts = copy.deepcopy(sym_expr)
+
+            for x in removed_sym:
+                se_w_csts = se_w_csts.subs(x, 0)
+                se_w_csts = se_w_csts.subs(sympy.zoo, 0)
+
+            sp = list(set(symbol_params) - removed_sym)
+
+            try:
+                f = sympy.lambdify(symbol_vars + sp, se_w_csts, modules = modules)
+            except SyntaxError as e:
+                print(e)
+
+                return
+
+            func = model_func(f)
+
+            grid = list(itertools.product(*params_value))
+
+            #Search in negative or positive ranges with additive constants
+            if (len(grid) >= brute_force_limit):
+                value_params = random_discrete_values(len(p0), discrete_values)
+            else:
+                best_loss = math.inf
+                value_params = None
+
+                for params in grid:
+                    l = loss_func(func(value_vars, *params), y)
+
+                    if (l < best_loss):
+                        best_loss = l
+                        value_params = params
+
+                        if (best_loss < epsloss):
+                            break
+
+                p3 = np.array(value_params)
+
+                for i in range(0, len(sp_w_csts)):
+                    p2[sp.index(sp_w_csts[i])] = p3[i]
+
+                remplacements = dict(zip(sp_w_csts, p2)) | dict(zip(removed_sym, [0] * len(removed_sym)))
+                value_params = [remplacements[val] for i, val in enumerate(symbol_params)]
+
+                final_expr = copy.deepcopy(sym_expr)
+
+                for k, v in dict(zip(symbol_params, value_params)).items():
+                    final_expr = final_expr.subs(k, v)
+                    final_expr = final_expr.subs(sympy.zoo, 0)
+
+                if (best_loss < epsloss):
+                    return value_params
+
+    #Fall back to genetic algorithm
+
+    try:
+        f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
+    except SyntaxError as e:
+        print(e)
+
+        return
+
+    func = model_func(f)
 
     creator.create("FitnessMin", base.Fitness, weights = (-1.0,))
     creator.create("Individual", list, fitness = creator.FitnessMin)
@@ -266,12 +476,16 @@ def fit(func, value_vars, y, p0, loss_func, eps, maxfev, discrete_values = []):
     toolbox.register("select", tools.selTournament, tournsize = 3)
 
     pop = toolbox.population(n = maxfev)
+    pop.append(creator.Individual(value_params))
 
     pop, bests = eaSimpleWithElitism(pop, toolbox, cxpb = 0.5, mutpb = 0.2, ngen = 100)
+
     value_params = tools.selBest(pop, 1)[0]
 
     value_params = round_discrete_values(value_params, discrete_values)
-
+    
+    print("Final expression", sym_expr.subs(dict(zip(symbol_params, value_params))))
+            
     return value_params
 
 def split_list(lst, n):
@@ -286,6 +500,54 @@ def round_val(x, eps):
         return int(r)
     else:
         return r
+
+def remove_add_cst_sym_expr(expr, symbols, val = 0):
+    e = expr_terms(expr, symbols)
+    e = sorted(e, key = str)
+    expr = sympy.collect(expr, e)
+    csts = []
+
+    for arg in expr.args:
+        e, cst = remove_add_cst_sym_expr(arg, symbols, val)
+        expr = expr.subs(arg, e)
+        csts += cst
+
+    expr = sympy.simplify(expr)
+
+    if (expr.is_Add):
+        nums = []
+        ws_exprs = []
+        wos_exprs = []
+
+        for arg in expr.args:
+            if arg.is_Number:
+                nums.append(arg)
+            else:
+                found = False
+
+                for s in symbols:
+                    if (arg.has(s)):
+                        found = True
+                        break
+
+                if (found):
+                    ws_exprs.append(arg)
+                else:
+                    wos_exprs.append(arg)
+
+        if (len(wos_exprs)):
+            for n in nums:
+                expr = expr.subs(n, 0)
+
+            for e in wos_exprs[1:]:
+                expr = expr.subs(e, 0)
+
+            expr = expr.subs(wos_exprs[0], val)
+            csts.append(wos_exprs[0])
+
+            expr = sympy.simplify(expr)
+
+    return expr, csts
 
 def symplify_sym_expr(expr, symbols):
     e = expr_terms(expr, symbols)
@@ -501,7 +763,10 @@ def mse_loss(x, y):
 
 def model_func(func):
     def model(x, *args):
-        return np.array(func(*x, *args), dtype = np.float64)
+        try:
+            return np.array(func(*x, *args), dtype = np.float64)
+        except ZeroDivisionError:
+            return math.nan
 
     return model
 
@@ -579,21 +844,12 @@ class Expr:
             del value_params[-1]
 
         try:
-            f = sympy.lambdify(self.symbol_vars + symbol_params, sym_expr, modules = modules)
-        except SyntaxError as e:
-            print(e)
-
-            return
-
-        func = model_func(f)
-
-        try:
             p0 = [float(x) for x in value_params]
             #p0 = np.random.randn(len(p0), 1)
 
             if (len(p0) <= len(y)):
                 try:
-                    value_params = fit(func, self.value_vars, y, p0, loss_func, eps, maxfev, discrete_param_values)
+                    value_params = fit(sym_expr, self.symbol_vars, symbol_params, modules, self.value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_param_values)
                 except TypeError as e:
                     print(sym_expr)
 
@@ -626,17 +882,27 @@ class Expr:
                 self.value_params = norm * p
             else:
                 self.value_params *= 0
-
         except RuntimeError:
             pass
 
-        y_pred = func(self.value_vars, *value_params)
-        self.loss = loss_func(y_pred, y)
-        self.opt_expr = sym_expr
+        self.opt_expr = copy.deepcopy(sym_expr)
 
         for i in range(0, len(symbol_params)):
-            v = int(value_params[i]) if value_params[i] == int(value_params[i]) else value_params[i]
+            v = int(self.value_params[i]) if self.value_params[i] == int(self.value_params[i]) else self.value_params[i]
             self.opt_expr = self.opt_expr.subs(symbol_params[i], v)
+            self.opt_expr = self.opt_expr.subs(sympy.zoo, 0)
+
+        self.opt_expr = sympy.simplify(self.opt_expr)
+
+        try:
+            f = sympy.lambdify(self.symbol_vars, self.opt_expr, modules = modules)
+        except SyntaxError as e:
+            print(e)
+
+            return
+
+        y_pred = f(*self.value_vars)
+        self.loss = loss_func(y_pred, y)
 
         if (self.loss < epsloss):
             self.opt_expr = sympy.factor(sympy.sympify(self.opt_expr))
@@ -892,14 +1158,17 @@ class SR:
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
+                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value, self.discrete_param_values)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
+                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value, self.discrete_param_values)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
+
+        if (self.verbose):
+            print("Best expression", min(opt_exprs, key = opt_exprs.get), min(opt_exprs.values()))
 
         self.expressions = opt_exprs
 
@@ -959,7 +1228,7 @@ class SR:
 
                     try:
                         new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                                  self.binary_operators, self.maxfev, self.maxloss, self.fixed_cst_value, self.discrete_param_values)
+                                                  self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value, self.discrete_param_values)
 
                         if (self.callback):
                             self.callback(new_expr, y)
@@ -992,6 +1261,8 @@ class SR:
                     exprs = sorted(exprs, key=lambda x: x.loss)
 
             if (self.verbose):
+                print("Best expression", min(opt_exprs, key = opt_exprs.get), min(opt_exprs.values()))
+
                 for k1 in range(0, len(self.checked_sym_expr)):
                     ce = self.checked_sym_expr[k1]
 
@@ -1061,13 +1332,17 @@ class SR:
                 import _pickle
 
                 try:
+                #if (False):
                     with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                         results = pool.map(eval_binary_combination, tasks)
                 except _pickle.PicklingError:
+                #else:
                     try:
+                    #if (False):
                         with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                             results = pool.map(eval_binary_combination, tasks) 
                     except BrokenPipeError:
+                    #else:
                         for t in tasks:
                             results.append(eval_binary_combination(t))
 
