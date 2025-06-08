@@ -136,4 +136,4 @@ def test_d_bacres2():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.simplify(sympy.sympify("10 - (2*x*y/(2+1**x^2))"))))
+    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.simplify(sympy.sympify("10 - (2*x*y/(2+1**x**2))"))))
