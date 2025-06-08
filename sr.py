@@ -211,13 +211,7 @@ def eaSimpleWithElitism(population, toolbox, cxpb, mutpb, ngen, elite_size=1):
     return population, bests
 
 def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_values = []):
-    try:
-        f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
-    except SyntaxError as e:
-        print(e)
-
-        return
-
+    f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
     func = model_func(f)
 
     if (len(discrete_values) == 0):
@@ -243,7 +237,11 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
         value_params = None
 
         for params in grid:
-            l = loss_func(func(value_vars, *params), y)
+            try:
+                l = loss_func(func(value_vars, *params), y)
+            except TypeError as e:
+                print(e)
+                print(func(value_vars, *params))
             
             if (l < best_loss):
                 best_loss = l
@@ -260,13 +258,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
     sym_expr_wo_csts, csts = remove_add_cst_sym_expr(sym_expr, symbol_vars, 1)
     symbol_params_wo_csts = list(set(symbol_params) - set(csts))
 
-    try:
-        f = sympy.lambdify(symbol_vars + symbol_params_wo_csts, sym_expr_wo_csts, modules = modules)
-    except SyntaxError as e:
-        print(e)
-
-        return
-
+    f = sympy.lambdify(symbol_vars + symbol_params_wo_csts, sym_expr_wo_csts, modules = modules)
     func = model_func(f)
     n = len(symbol_params_wo_csts)
 
@@ -278,7 +270,11 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
         value_params = None
 
         for params in grid:
-            l = loss_func(func(value_vars, *params), y)
+            try:
+                l = loss_func(func(value_vars, *params), y)
+            except TypeError as e:
+                print(e)
+                print(func(value_vars, *params))
 
             if (l < best_loss):
                 best_loss = l
@@ -329,13 +325,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
         sp = list(set(symbol_params) - removed_sym)
 
-        try:
-            f = sympy.lambdify(symbol_vars + sp, se_w_csts, modules = modules)
-        except SyntaxError as e:
-            print(e)
-
-            return
-
+        f = sympy.lambdify(symbol_vars + sp, se_w_csts, modules = modules)
         func = model_func(f)
         n = len(sp)
 
@@ -349,7 +339,11 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
             value_params = None
 
             for params in grid:
-                l = loss_func(func(value_vars, *params), y)
+                try:
+                    l = loss_func(func(value_vars, *params), y)
+                except TypeError as e:
+                    print(e)
+                    print(func(value_vars, *params))
 
                 if (l < best_loss):
                     best_loss = l
@@ -393,13 +387,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
             sp = list(set(symbol_params) - removed_sym)
 
-            try:
-                f = sympy.lambdify(symbol_vars + sp, se_w_csts, modules = modules)
-            except SyntaxError as e:
-                print(e)
-
-                return
-
+            f = sympy.lambdify(symbol_vars + sp, se_w_csts, modules = modules)
             func = model_func(f)
 
             grid = list(itertools.product(*params_value))
@@ -412,7 +400,11 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
                 value_params = None
 
                 for params in grid:
-                    l = loss_func(func(value_vars, *params), y)
+                    try:
+                        l = loss_func(func(value_vars, *params), y)
+                    except TypeError as e:
+                        print(e)
+                        print(func(value_vars, *params))
 
                     if (l < best_loss):
                         best_loss = l
@@ -440,13 +432,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
     #Fall back to genetic algorithm
 
-    try:
-        f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
-    except SyntaxError as e:
-        print(e)
-
-        return
-
+    f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
     func = model_func(f)
 
     creator.create("FitnessMin", base.Fitness, weights = (-1.0,))
@@ -885,13 +871,7 @@ class Expr:
 
         self.opt_expr = sympy.simplify(self.opt_expr)
 
-        try:
-            f = sympy.lambdify(self.symbol_vars, self.opt_expr, modules = modules)
-        except SyntaxError as e:
-            print(e)
-
-            return
-
+        f = sympy.lambdify(self.symbol_vars, self.opt_expr, modules = modules)
         y_pred = f(*self.value_vars)
         self.loss = loss_func(y_pred, y)
 
