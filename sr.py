@@ -1064,7 +1064,8 @@ class SR:
                  op_weights = None,
                  operator_depth = {},
                  callback = None,
-                 maxcomplexity = -1):
+                 maxcomplexity = -1,
+                 monothread = False):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -1093,6 +1094,7 @@ class SR:
         self.operator_depth = operator_depth
         self.callback = callback
         self.maxcomplexity = maxcomplexity
+        self.monothread = monothread
 
         assert(self.eps > 0)
 
@@ -1300,22 +1302,20 @@ class SR:
 
                 shared_value = manager.Value('i', symbolIndex)
 
-                import _pickle
-
-                try:
-                #if (False):
-                    with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
-                        results = pool.map(eval_binary_combination, tasks)
-                except _pickle.PicklingError:
-                #else:
+                if (self.monothread):
+                    for t in tasks:
+                        results.append(eval_binary_combination(t))
+                else:
                     try:
-                    #if (False):
-                        with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
-                            results = pool.map(eval_binary_combination, tasks) 
-                    except BrokenPipeError:
-                    #else:
-                        for t in tasks:
-                            results.append(eval_binary_combination(t))
+                        with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
+                            results = pool.map(eval_binary_combination, tasks)
+                    except _pickle.PicklingError:
+                        try:
+                            with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
+                                results = pool.map(eval_binary_combination, tasks) 
+                        except BrokenPipeError:
+                            for t in tasks:
+                                results.append(eval_binary_combination(t))
 
                 finished = shared_finished.value
 
