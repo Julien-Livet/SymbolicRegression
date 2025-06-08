@@ -9,8 +9,6 @@ import operator
 import random
 import scipy.optimize
 import sympy
-import torch
-import torch.nn as nn
 
 def expression_complexity(expr, weights = None):
     if (weights is None):
