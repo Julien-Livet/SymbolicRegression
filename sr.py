@@ -374,8 +374,8 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
             se_w_csts = se_w_csts.subs(sympy.zoo, 0)
 
-            for i in reversed(range(0, len(sp))):
-                if (not sp[i] in se_w_csts.free_symbols):
+            for i in reversed(range(0, len(sp_w_csts))):
+                if (not sp_w_csts[i] in se_w_csts.free_symbols):
                     p2[sp.index(sp_w_csts[i])] = 0
                     removed_sym.add(sp_w_csts[i])
                     del params_value[i]
@@ -846,14 +846,7 @@ class Expr:
             #p0 = np.random.randn(len(p0), 1)
 
             if (len(p0) <= len(y)):
-                try:
-                    value_params = fit(sym_expr, self.symbol_vars, symbol_params, modules, self.value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_param_values)
-                except TypeError as e:
-                    print(sym_expr)
-
-                    print(e)
-
-                    exit()
+                value_params = fit(sym_expr, self.symbol_vars, symbol_params, modules, self.value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_param_values)
 
             for i in range(0, len(value_params)):
                 value_params[i] = round(value_params[i] / eps) * eps
