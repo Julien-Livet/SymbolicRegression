@@ -1304,6 +1304,8 @@ class SR:
                     for t in tasks:
                         results.append(eval_binary_combination(t))
                 else:
+                    import _pickle
+                
                     try:
                         with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                             results = pool.map(eval_binary_combination, tasks)
