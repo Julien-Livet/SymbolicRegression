@@ -5,4 +5,4 @@ setup(name = 'sr',
       description = 'Symbolic regression',
       author = 'Julien LIVET',
       author_email = 'julien.livet@free.fr',
-      install_requires = ['sympy', 'numpy', 'scipy', 'deap'])
+      install_requires = ['sympy', 'numpy', 'scipy', 'deap', 'matplotlib'])
