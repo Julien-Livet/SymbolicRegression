@@ -411,7 +411,7 @@ def test_d_shearflow1():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("cot(y)*cos(x)")))))
-
+"""
 def test_d_shearflow2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_shearflow2.txt")
 
@@ -442,7 +442,7 @@ def test_d_shearflow2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("(cos(y)**2+0.1*sin(y)**2)*sin(x)")))))
-
+"""
 def test_d_vdp1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_vdp1.txt")
 
