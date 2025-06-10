@@ -397,7 +397,7 @@ def test_d_shearflow1():
     model = sr.SR(niterations = 3,
                   verbose = False,
                   unary_operators = {"cot": (sym_cot, num_cot),
-                                     "cos": (sympy.cos, np.cos),}
+                                     "cos": (sympy.cos, np.cos)},
                   binary_operators = {"*": (operator.mul, operator.mul)},
                   operator_depth = {"cos": 1, "cot": 1, "*": 2},
                   discrete_param_values = ["(-1, 1)"],
@@ -427,7 +427,7 @@ def test_d_shearflow2():
     model = sr.SR(niterations = 3,
                   verbose = False,
                   unary_operators = {"sin": (sympy.sin, np.sin),
-                                     "cos": (sympy.cos, np.cos),}
+                                     "cos": (sympy.cos, np.cos)},
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
                   operator_depth = {"cos": 1, "sin": 1, "*": 2, "+": 2},
