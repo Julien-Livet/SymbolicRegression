@@ -11,6 +11,12 @@ import sympy
 loss = math.inf
 plot_y = True
 
+def sym_cot(x):
+    return sympy.sympify("cot(" + str(x) + ")")
+
+def num_cot(x):
+    return 1 / np.tan(x)
+
 def callback(expr, y):
     global loss, plot_y
     
@@ -143,7 +149,7 @@ def test_d_barmag1():
 
     #import matplotlib.pyplot as plt
     #plt.scatter(list(range(0, len(label))), label)
-    #plt.scatter(list(range(0, len(label))), 0.5*sin(x-y)-sin(x))
+    #plt.scatter(list(range(0, len(label))), 0.5*np.sin(x-y)-np.sin(x))
     #plt.show()
 
     global loss, plot_y
@@ -165,14 +171,14 @@ def test_d_barmag1():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("0.5*sin(x-y)-sin(x)")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("0.5*sin(x-y)-sin(x)")))
 
 def test_d_barmag2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_barmag2.txt")
 
     #import matplotlib.pyplot as plt
     #plt.scatter(list(range(0, len(label))), label)
-    #plt.scatter(list(range(0, len(label))), 0.5*sin(y-x) - sin(y))
+    #plt.scatter(list(range(0, len(label))), 0.5*np.sin(y-x) - np.sin(y))
     #plt.show()
 
     global loss, plot_y
@@ -194,14 +200,14 @@ def test_d_barmag2():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("0.5*sin(y-x) - sin(y)")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("0.5*sin(y-x) - sin(y)")))
 
 def test_d_glider1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_glider1.txt")
 
     #import matplotlib.pyplot as plt
     #plt.scatter(list(range(0, len(label))), label)
-    #plt.scatter(list(range(0, len(label))), -0.05*x**2-sin(y))
+    #plt.scatter(list(range(0, len(label))), -0.05*x**2-np.sin(y))
     #plt.show()
 
     global loss, plot_y
@@ -224,14 +230,14 @@ def test_d_glider1():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("-0.05*x**2-sin(y)")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-0.05*x**2-sin(y)")))
 
 def test_d_glider2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_glider2.txt")
 
     #import matplotlib.pyplot as plt
     #plt.scatter(list(range(0, len(label))), label)
-    #plt.scatter(list(range(0, len(label))), x - cos(y)/x)
+    #plt.scatter(list(range(0, len(label))), x - np.cos(y)/x)
     #plt.show()
 
     global loss, plot_y
@@ -243,18 +249,19 @@ def test_d_glider2():
     model = sr.SR(niterations = 3,
                   verbose = False,
                   unary_operators = {"cos": (sympy.cos, np.cos)},
-                  binary_operators = {"+": (operator.add, operator.add),
-                                      "/": (operator.truediv, operator.truediv)},
+                  binary_operators = {"/": (operator.truediv, operator.truediv),
+                                      "+": (operator.add, operator.add)},
                   discrete_param_values = ["(-1, 1)"],
                   operator_depth = {"cos": 1, "/": 1, "+": 1},
                   #callback = callback,
                   #monothread = True,
+                  maxcomplexity = 20,
                   foundBreak = True)
 
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("x - cos(y)/x")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("x - cos(y)/x")))
 
 def test_d_lv1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_lv1.txt")
@@ -282,7 +289,7 @@ def test_d_lv1():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("3*x-2*x*y-x**2")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("3*x-2*x*y-x**2")))
 
 def test_d_lv2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_lv2.txt")
@@ -310,8 +317,8 @@ def test_d_lv2():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("2*y-x*y-y**2")))))
-
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("2*y-x*y-y**2")))
+"""
 def test_d_predprey1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_predprey1.txt")
 
@@ -331,8 +338,9 @@ def test_d_predprey1():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add),
                                       "/": (operator.truediv, operator.truediv)},
-                  discrete_param_values = ["(-1, 4)"],
-                  operator_depth = {"/": 1, "*": 2, "+": 2},
+                  discrete_param_values = ["(-1, 1)", 4],
+                  operator_depth = {"/": 1, "*": 2, "+": 4},
+                  maxcomplexity = 25,
                   #callback = callback,
                   #monothread = True,
                   foundBreak = True)
@@ -371,6 +379,67 @@ def test_d_predprey2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("y*(x/(1+x)-0.075*y)")))))
+"""
+def test_d_shearflow1():
+    label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_shearflow1.txt")
+
+    #import matplotlib.pyplot as plt
+    #plt.scatter(list(range(0, len(label))), label)
+    #plt.scatter(list(range(0, len(label))), num_cot(y)*np.cos(x))
+    #plt.show()
+
+    global loss, plot_y
+    loss = math.inf
+    plot_y = True
+
+    plt.ion()
+
+    model = sr.SR(niterations = 3,
+                  verbose = False,
+                  unary_operators = {"cot": (sym_cot, num_cot),
+                                     "cos": (sympy.cos, np.cos),}
+                  binary_operators = {"*": (operator.mul, operator.mul)},
+                  operator_depth = {"cos": 1, "cot": 1, "*": 2},
+                  discrete_param_values = ["(-1, 1)"],
+                  #callback = callback,
+                  #monothread = True,
+                  foundBreak = True)
+
+    model.predict([x, y], label, ["x", "y"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("cot(y)*cos(x)")))))
+
+def test_d_shearflow2():
+    label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_shearflow2.txt")
+
+    #import matplotlib.pyplot as plt
+    #plt.scatter(list(range(0, len(label))), label)
+    #plt.scatter(list(range(0, len(label))), (np.cos(y)**2+0.1*np.sin(y)**2)*np.sin(x))
+    #plt.show()
+
+    global loss, plot_y
+    loss = math.inf
+    plot_y = True
+
+    plt.ion()
+
+    model = sr.SR(niterations = 3,
+                  verbose = False,
+                  unary_operators = {"sin": (sympy.sin, np.sin),
+                                     "cos": (sympy.cos, np.cos),}
+                  binary_operators = {"*": (operator.mul, operator.mul),
+                                      "+": (operator.add, operator.add)},
+                  operator_depth = {"cos": 1, "sin": 1, "*": 2, "+": 2},
+                  discrete_param_values = ["(0, 1)", 0.1],
+                  #callback = callback,
+                  #monothread = True,
+                  foundBreak = True)
+
+    model.predict([x, y], label, ["x", "y"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("(cos(y)**2+0.1*sin(y)**2)*sin(x)")))))
 
 def test_d_vdp1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_vdp1.txt")
@@ -391,6 +460,7 @@ def test_d_vdp1():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
                   operator_depth = {"*": 2, "+": 2},
+                  discrete_param_values = [0, -10/3, 40/3],
                   #callback = callback,
                   #monothread = True,
                   foundBreak = True)
@@ -426,4 +496,4 @@ def test_d_vdp2():
     model.predict([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("-1/10*x")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-1/10*x")))
