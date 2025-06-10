@@ -235,11 +235,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
         value_params = None
 
         for params in grid:
-            try:
-                l = loss_func(func(value_vars, *params), y)
-            except TypeError as e:
-                print(e)
-                print(func(value_vars, *params))
+            l = loss_func(func(value_vars, *params), y)
             
             if (l < best_loss):
                 best_loss = l
@@ -265,14 +261,10 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
         grid = list(itertools.product((-1, 0, 1), repeat = n))
 
         best_loss = math.inf
-        value_params = None
+        value_params = np.zeros(len(symbol_params_wo_csts))
 
         for params in grid:
-            try:
-                l = loss_func(func(value_vars, *params), y)
-            except TypeError as e:
-                print(e)
-                print(func(value_vars, *params))
+            l = loss_func(func(value_vars, *params), y)
 
             if (l < best_loss):
                 best_loss = l
@@ -334,14 +326,10 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
             grid = list(itertools.product((-1, 0, 1), repeat = n))
 
             best_loss = math.inf
-            value_params = None
+            value_params = np.zeros(len(sp))
 
             for params in grid:
-                try:
-                    l = loss_func(func(value_vars, *params), y)
-                except TypeError as e:
-                    print(e)
-                    print(func(value_vars, *params))
+                l = loss_func(func(value_vars, *params), y)
 
                 if (l < best_loss):
                     best_loss = l
@@ -395,14 +383,10 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
                 value_params = random_discrete_values(len(p0), discrete_values)
             else:
                 best_loss = math.inf
-                value_params = None
+                value_params = np.zeros(len(sp))
 
                 for params in grid:
-                    try:
-                        l = loss_func(func(value_vars, *params), y)
-                    except TypeError as e:
-                        print(e)
-                        print(func(value_vars, *params))
+                    l = loss_func(func(value_vars, *params), y)
 
                     if (l < best_loss):
                         best_loss = l
@@ -413,8 +397,8 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
                 p3 = np.array(value_params)
 
-                for i in range(0, len(sp_w_csts)):
-                    p2[sp.index(sp_w_csts[i])] = p3[i]
+                for i in range(0, len(sp)):
+                    p2[sp_w_csts.index(sp[i])] = p3[i]
 
                 remplacements = dict(zip(sp_w_csts, p2)) | dict(zip(removed_sym, [0] * len(removed_sym)))
                 value_params = [remplacements[val] for i, val in enumerate(symbol_params)]
