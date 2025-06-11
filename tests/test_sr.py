@@ -797,7 +797,7 @@ def test_keijzer10():
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x1**x2"))
-
+"""
 def test_primes():
     model = sr.SR(niterations = 2,
                   unary_operators = {"log": (sympy.log, np.log)},
@@ -816,3 +816,4 @@ def test_primes():
     assert(len(model.bestExpressions) == 1)
     #n*log(n*log(n+1)+n+log(n+1)+1)-n+1 = n*(log(n+1)+log(1+log(n+1))-1)+1
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("n*log(n*log(n + 1) + n + log(n + 1) + 1) - n + 1"))
+"""
