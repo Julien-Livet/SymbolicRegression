@@ -409,8 +409,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
                     final_expr = final_expr.subs(k, v)
                     final_expr = final_expr.subs(sympy.zoo, 0)
 
-                if (best_loss < epsloss):
-                    return value_params
+                return value_params
 
     #Fall back to genetic algorithm
 
