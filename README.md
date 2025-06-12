@@ -1,6 +1,6 @@
 # SymbolicRegression
 
-Let give some symbols like x1 and x2.
+Let give some symbols like ```x1``` and ```x2```.
 The algorithm will consider first the linear combinations ```a*x1+b``` and ```c*x2+d```, then extra start symbolic expressions defined with ```extra_start_sym_expr```.
 Set ```verbose``` to True to get some information during regression.
 During process, we can check some expressions with ```checked_sym_expr```.
