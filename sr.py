@@ -87,7 +87,12 @@ def all_values_discrete_values(discrete_values):
             if (s[0] == "(" or s[0] == ")"):
                 a, b = int(a), int(b)
 
-                all_values += list(range(a, b + 1))
+                c = 1
+
+                if (len(values) > 2):
+                    c = int(values[2])
+
+                all_values += list(range(a, b + 1, c))
             elif (s[0] == "[" or s[0] == "]"):
                 c = 10
 
