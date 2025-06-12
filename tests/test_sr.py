@@ -140,6 +140,24 @@ def test_sym_expr_eq_16():
 
     assert(sr.sym_expr_eq(expr1, expr2, sympy.symbols("x y")))
 
+def test_5x1_add_7x2_add_x3_add_8():
+    model = sr.SR(niterations = 3,
+                  binary_operators = {"+": (operator.add, operator.add)},
+                  #discrete_param_values = [0, 1, 5, 7, 8],
+                  discrete_param_values = ["(0, 10)"],
+                  foundBreak = True)
+
+    x1 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    x2 = np.array([5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47])
+    x3 = np.array([3, 9, 15, 21, 27, 33, 39, 45, 51, 57, 63, 69, 75, 81, 87])
+    X = [x1, x2, x3]
+    y = 5 * x1 + 7 * x2 + x3 + 8
+
+    model.fit(X, y, ["x1", "x2", "x3"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("5 * x1 + 7 * x2 + x3 + 8")))
+    
 def test_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   binary_operators = {"*": (operator.mul, operator.mul)},
@@ -168,7 +186,7 @@ def test_x1_mul_x2():
     X = [x1, x2]
     y = x1 * x2
 
-    model.predict(X, y, ["x1", "x2"])
+    model.fit(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x1*x2"))
@@ -184,7 +202,7 @@ def test_x1_add_x2():
     X = [x1, x2]
     y = x1 + x2
 
-    model.predict(X, y, ["x1", "x2"])
+    model.fit(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x1+x2"))
@@ -200,7 +218,7 @@ def test_x1_2_add_x2_2_sub_x1_mul_x2():
     X = [x1, x2]
     y = (x1 - x2) ** 2 + x1 * x2
 
-    model.predict(X, y, ["x1", "x2"])
+    model.fit(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.sympify("(x1-x2)**2+x1*x2"))))
@@ -218,7 +236,7 @@ def test_a_mul_x1_add_b():
     b = random.random()
     y = a * x1 + b
 
-    model.predict(X, y, ["x1", "x2"])
+    model.fit(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
 
@@ -238,7 +256,7 @@ def test_a_mul_x2_add_b_mul_x2_add_c():
     c = random.random()
     y = a * x1 + b * x2 + c
 
-    model.predict(X, y, ["x1", "x2"])
+    model.fit(X, y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify(str(a) + "*x1+" + str(b) + "*x2+" + str(c))))
@@ -255,7 +273,7 @@ def test_pysr():
                   foundBreak = True,
                   eps = 1e-6)
 
-    model.predict(X, y)
+    model.fit(X, y)
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(model.bestExpressions[0][0], sympy.sympify("2.5382 * cos(x3) + x0 ** 2 - 0.5")))
@@ -292,7 +310,7 @@ def test_line():
                   foundBreak = True,
                   epsloss = 1e-4)
 
-    model.predict([x, y], np.zeros(len(x)), ["x", "y"])
+    model.fit([x, y], np.zeros(len(x)), ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c"), sympy.symbols("x y")))
@@ -328,7 +346,7 @@ def test_circle():
                   foundBreak = True,
                   epsloss = 1e-3)
 
-    model.predict([x, y], np.zeros(len(x)), ["x", "y"])
+    model.fit([x, y], np.zeros(len(x)), ["x", "y"])
 
     assert(len(model.bestExpressions) >= 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 - R ** 2)"), sympy.symbols("x y")))
@@ -371,7 +389,7 @@ def test_plane():
                   foundBreak = True,
                   epsloss = 1e-4)
 
-    model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
+    model.fit([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c * z + d"), sympy.symbols("x y z")))
 
@@ -404,7 +422,7 @@ def test_sphere():
                   foundBreak = True,
                   epsloss = 1e-4)
 
-    model.predict([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
+    model.fit([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
     assert(len(model.bestExpressions) >= 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2)"), sympy.symbols("x y z")))
@@ -422,7 +440,7 @@ def test_gplearn():
                                       "*": (operator.mul, operator.mul)},
                   foundBreak = True)
 
-    model.predict(X_train, y_train)
+    model.fit(X_train, y_train)
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x0**2-x1**2+x1-1"))
@@ -439,7 +457,7 @@ def test_1():
     x = np.random.rand(n)
     y = x ** 2 + x + 1
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x ** 2 + x + 1"))
@@ -473,7 +491,7 @@ def test_2():
     #plt.legend()
     #plt.show()
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("sin(x)*exp(x)"))
@@ -497,7 +515,7 @@ def test_3():
     x = (xmax - xmin) * np.random.rand(n) + xmin
     y = x / (1 + x ** 2)
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) >= 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x / (1 + x **2)"))
@@ -514,7 +532,7 @@ def test_4():
     x = np.random.rand(n)
     y = np.random.rand(n)
 
-    model.predict([x, y], x**2 + y **2, ["x", "y"])
+    model.fit([x, y], x**2 + y **2, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x**2+y**2"))
@@ -537,7 +555,7 @@ def test_5():
     x = (xmax - xmin) * np.random.rand(n) + xmin
     y = np.log(x) + np.sin(x)
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("log(x)+sin(x)"))
@@ -558,7 +576,7 @@ def test_6():
     x = np.random.rand(n)
     y = np.exp(-x**2 / 2) / math.sqrt(2 * math.pi)
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(model.bestExpressions[0][0], 1 / math.sqrt(2 * math.pi) * sympy.sympify("exp(-x**2/2)"), eps = eps))
@@ -575,7 +593,7 @@ def test_koza1():
     x = np.random.rand(n)
     y = x**4 + x**3 + x**2 + x
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**4 + x**3 + x**2 + x"))
@@ -592,7 +610,7 @@ def test_nguyen1():
     x = np.random.rand(n)
     y = x**3 + x**2 + x
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**3 + x**2 + x"))
@@ -609,7 +627,7 @@ def test_nguyen2():
     x = np.random.rand(n)
     y = x**4 + x**3 + x**2 + x
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**4 + x**3 + x**2 + x"))
@@ -626,7 +644,7 @@ def test_nguyen3():
     x = np.random.rand(n)
     y = x**5 + x**4 + x**3 + x**2 + x
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**5 + x**4 + x**3 + x**2 + x"))
@@ -643,7 +661,7 @@ def test_nguyen4():
     x = np.random.rand(n)
     y = x**6 + x**5 + x**4 + x**3 + x**2 + x
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x**6 + x**5 + x**4 + x**3 + x**2 + x"))
@@ -664,7 +682,7 @@ def test_nguyen5():
     x = np.random.rand(n)
     y = np.sin(x**2)*np.cos(x) - 1
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("sin(x**2)*cos(x)-1"))
@@ -686,7 +704,7 @@ def test_nguyen6():
     x = np.random.rand(n)
     y = np.sin(x) + np.sin(x + x**2)
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("sin(x)+sin(x+x**2)"))
@@ -708,7 +726,7 @@ def test_nguyen7():
     x = np.random.rand(n)
     y = np.log(x + 1) + np.log(x ** 2 +1)
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("log(x+1)+log(x**2+1)"))
@@ -726,7 +744,7 @@ def test_nguyen8():
     x = np.random.rand(n)
     y = np.sqrt(x)
 
-    model.predict([x], y, ["x"])
+    model.fit([x], y, ["x"])
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x**0.5"))
@@ -749,7 +767,7 @@ def test_nguyen9():
     x2 = np.random.rand(n)
     y = np.sin(x1) + np.sin(x2**2)
 
-    model.predict([x1, x2], y, ["x1", "x2"])
+    model.fit([x1, x2], y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("sin(x1)+sin(x2**2)"))
@@ -772,7 +790,7 @@ def test_nguyen10():
     x2 = np.random.rand(n)
     y = 2 * np.sin(x1) * np.cos(x2)
 
-    model.predict([x1, x2], y, ["x1", "x2"])
+    model.fit([x1, x2], y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("2*sin(x1)*cos(x2)"))
@@ -793,7 +811,7 @@ def test_keijzer10():
     x2 = np.random.rand(n)
     y = x1 ** x2
 
-    model.predict([x1, x2], y, ["x1", "x2"])
+    model.fit([x1, x2], y, ["x1", "x2"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("x1**x2"))
@@ -811,9 +829,10 @@ def test_primes():
     x = np.array(list(range(2, n + 1)))
     y = list(sympy.primerange(sympy.prime(x[0]), sympy.prime(x[-1]) + 1))
 
-    model.predict([x], y, ["n"])
+    model.fit([x], y, ["n"])
 
     assert(len(model.bestExpressions) == 1)
-    #n*log(n*log(n+1)+n+log(n+1)+1)-n+1 = n*(log(n+1)+log(1+log(n+1))-1)+1
+    #u(n) = n*log(n*log(n+1)+n+log(n+1)+1)-n+1 = n*(log(n+1)+log(1+log(n+1))-1)+1
+    #exp(u(n)) = (n+1)**n*(1+log(n+1))**n*exp(1-n)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.sympify("n*log(n*log(n + 1) + n + log(n + 1) + 1) - n + 1"))
 """

@@ -106,11 +106,11 @@ def test_d_bacres1():
                   discrete_param_values = ["(-2, 2)", 20],
                   operator_depth = {"/": 1, "*": 2, "+": 2},
                   #callback = callback,
-                  maxcomplexity = 30,
                   #monothread = True,
+                  maxcomplexity = 30,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.simplify(sympy.sympify("20 -x - (2*x*y/(2+1*x**2))"))))
@@ -137,11 +137,11 @@ def test_d_bacres2():
                   discrete_param_values = ["(-2, 2)", 10],
                   operator_depth = {"/": 1, "*": 2, "+": 2},
                   #callback = callback,
-                  maxcomplexity = 30,
                   #monothread = True,
+                  maxcomplexity = 30,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("10 - (x*y/(1+0.5*x**2))")))))
@@ -170,7 +170,7 @@ def test_d_barmag1():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("0.5*sin(x-y)-sin(x)")))
@@ -199,7 +199,7 @@ def test_d_barmag2():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("0.5*sin(y-x) - sin(y)")))
@@ -229,7 +229,7 @@ def test_d_glider1():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-0.05*x**2-sin(y)")))
@@ -260,7 +260,7 @@ def test_d_glider2():
                   maxcomplexity = 20,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("x - cos(y)/x")))
@@ -288,7 +288,7 @@ def test_d_lv1():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("3*x-2*x*y-x**2")))
@@ -316,7 +316,7 @@ def test_d_lv2():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("2*y-x*y-y**2")))
@@ -347,7 +347,7 @@ def test_d_predprey1():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("x*(4-x-y/(1+x))")))))
@@ -377,7 +377,7 @@ def test_d_predprey2():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("y*(x/(1+x)-0.075*y)")))))
@@ -407,7 +407,7 @@ def test_d_shearflow1():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("cot(y)*cos(x)")))))
@@ -438,7 +438,7 @@ def test_d_shearflow2():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("(cos(y)**2+0.1*sin(y)**2)*sin(x)")))))
@@ -470,7 +470,7 @@ def test_d_vdp1():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("10*(y-(1/3*(x**3-y)))")))))
@@ -498,7 +498,7 @@ def test_d_vdp2():
                   #monothread = True,
                   foundBreak = True)
 
-    model.predict([x, y], label, ["x", "y"])
+    model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-1/10*x")))

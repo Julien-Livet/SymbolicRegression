@@ -1084,7 +1084,7 @@ class SR:
         self.bestExpressions = []
         self.lastIteration = -1
 
-    def predict(self, X, y, variable_names = []):
+    def fit(self, X, y, variable_names = []):
         y = np.array(y, dtype = np.float64)
         
         self.lastIteration = -1
@@ -1293,7 +1293,7 @@ class SR:
                     try:
                         with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                             results = pool.map(eval_binary_combination, tasks)
-                    except _pickle.PicklingError:
+                    except (_pickle.PicklingError, RuntimeError) as e:
                         try:
                             with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                                 results = pool.map(eval_binary_combination, tasks) 
