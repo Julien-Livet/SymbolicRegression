@@ -7,6 +7,7 @@ During process, we can check some expressions with ```checked_sym_expr```.
 Then the first iteration starts:
 - We apply the unary operators defined with ```unary_operators```, for example ```e*log(a*x1+b)+f``` and ```g*log(c*x2+d)+h```.
 - We apply then the binary operators defined with ```binary_operators```, for example ```i*(a*x1+b+c*x2+d)+j``` same as ```k*x1+l*x2+m```, etc. We can skip some combinations according to symmetric binary operators defined with ```symmetric_binary_operators```.
+
 ```discard_previous_expr``` will discard previous expressions at each level of iteration, avoiding combinatory explosion.
 We can define the depth of operators with ```operator_depth``` and the maximal complexity of searched expressions with ```maxcomplexity```.
 We can apply some weights to operators for depth with ```op_weights```.
