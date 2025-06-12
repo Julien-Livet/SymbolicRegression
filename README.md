@@ -9,7 +9,7 @@ Then the first iteration starts:
 - We apply the unary operators defined with ```unary_operators```, for example ```e*log(a*x1+b)+f``` and ```g*log(c*x2+d)+h```.
 - We apply then the binary operators defined with ```binary_operators```, for example ```i*(a*x1+b+c*x2+d)+j``` same as ```k*x1+l*x2+m```, etc. We can skip some combinations according to symmetric binary operators defined with ```symmetric_binary_operators```.
 
-```discard_previous_expr``` will discard previous expressions at each level of iteration, avoiding combinatory explosion.
+```discard_previous_expr``` will discard previous expressions at each level of iteration, avoiding combinatory explosion. To avoid too this explosion, ```maxloss```, ```maxexpr```, ```group_expr_size``` and ```maxtask``` are provided. Use ```process_sym_expr``` to process only target expressions.
 We can define the depth of operators with ```operator_depth``` and the maximal complexity of searched expressions with ```maxcomplexity```.
 We can apply some weights to operators for depth with ```op_weights```.
 At each combination, we compute an optimal expression. If ```discrete_param_values``` is empty, we search optimal parameters with ```scipy.fit_curve``` (```maxfev``` is used), else we use brute force algorithm if possible, else a small brute force algorithm, else a genetic algorithm with ```deap```. ```discrete_param_values``` accept integer or float values, str to define integer ranges like "(3, 5)" for 3, 4, 5, or "(3, 6, 2)" for 3, 4, or real ranges like "[3, 5, 1]" for ```np.linspace(3, 5, 1)```.
