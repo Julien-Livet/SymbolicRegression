@@ -144,20 +144,23 @@ def test_5x1_add_7x2_add_x3_add_8():
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add)},
                   #discrete_param_values = [0, 1, 5, 7, 8],
-                  discrete_param_values = ["(0, 10)"],
+                  #discrete_param_values = ["(0, 10)"],
+                  discrete_param_values = [0, "[5, 10, 10]"],
                   foundBreak = True)
 
     x1 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
     x2 = np.array([5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47])
     x3 = np.array([3, 9, 15, 21, 27, 33, 39, 45, 51, 57, 63, 69, 75, 81, 87])
     X = [x1, x2, x3]
-    y = 5 * x1 + 7 * x2 + x3 + 8
+    #y = 5 * x1 + 7 * x2 + x3 + 8
+    y = 5.2 * x1 + 7.3 * x2 + x3 + 8.6
 
     model.fit(X, y, ["x1", "x2", "x3"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("5 * x1 + 7 * x2 + x3 + 8")))
-    
+    #assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("5 * x1 + 7 * x2 + x3 + 8")))
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("5.2 * x1 + 7.3 * x2 + x3 + 8.6")))
+
 def test_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   binary_operators = {"*": (operator.mul, operator.mul)},

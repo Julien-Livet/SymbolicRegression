@@ -79,7 +79,8 @@ def all_values_discrete_values(discrete_values):
             all_values.append(value)
         elif (type(value) == str):
             s = value
-            a, b = [float(x) for x in s[1:-1].split(",")]
+            values = [float(x) for x in s[1:-1].split(",")]
+            a, b = values[0], values[1]
 
             assert(a <= b)
 
@@ -88,7 +89,12 @@ def all_values_discrete_values(discrete_values):
 
                 all_values += list(range(a, b + 1))
             elif (s[0] == "[" or s[0] == "]"):
-                all_values += list(np.linspace(a, b, 100))
+                c = 10
+
+                if (len(values) > 2):
+                    c = int(values[2])
+
+                all_values += list(np.linspace(a, b, c))
 
     return all_values
 
@@ -106,7 +112,8 @@ def range_discrete_values(discrete_values):
             max_ = max(max_, value)
         elif (type(value) == str):
             s = value
-            a, b = [float(x) for x in s[1:-1].split(",")]
+            values = [float(x) for x in s[1:-1].split(",")]
+            a, b = values[0], values[1]
 
             assert(a <= b)
 
