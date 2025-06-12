@@ -4,6 +4,7 @@ Let give some symbols like ```x1``` and ```x2```.
 The algorithm will consider first the linear combinations ```a*x1+b``` and ```c*x2+d```, then extra start symbolic expressions defined with ```extra_start_sym_expr```.
 Set ```verbose``` to True to get some information during regression.
 During process, we can check some expressions with ```checked_sym_expr```.
+It is possible to specify the cost function to optimize with ```elementwise_loss```.
 Then the first iteration starts:
 - We apply the unary operators defined with ```unary_operators```, for example ```e*log(a*x1+b)+f``` and ```g*log(c*x2+d)+h```.
 - We apply then the binary operators defined with ```binary_operators```, for example ```i*(a*x1+b+c*x2+d)+j``` same as ```k*x1+l*x2+m```, etc. We can skip some combinations according to symmetric binary operators defined with ```symmetric_binary_operators```.
@@ -16,5 +17,7 @@ We process like that until the computed loss is less than ```epsloss```.
 ```eps``` is used to round numeric values and compare with other expressions for example.
 We can subsitute some target expressions with ```subs_expr```. We can also avoid some expressions with ```avoided_expr```.
 It is possible to call user callback during process with ```callback```.
+
+To use multiprocess functionalities, functions must be pickable and ```freeze_support``` enabled.
 
 For more information, see existing tests.
