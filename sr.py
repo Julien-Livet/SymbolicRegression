@@ -1170,7 +1170,7 @@ class SR:
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
             if (self.callback):
-                self.callback(new_expr, y)
+                self.callback(exprs[-1], y)
 
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
@@ -1180,7 +1180,7 @@ class SR:
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
             if (self.callback):
-                self.callback(new_expr, y)
+                self.callback(exprs[-1], y)
 
         if (self.verbose):
             print("Best expression", min(opt_exprs, key = opt_exprs.get), min(opt_exprs.values()))
