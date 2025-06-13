@@ -140,12 +140,17 @@ def random_discrete_values(n, discrete_values):
 
         if (type(value) == str):
             s = value
-            a, b = [float(x) for x in s[1:-1].split(",")]
+            values = [float(x) for x in s[1:-1].split(",")]
+            a, b = values[0], values[1]
 
             assert(a <= b)
 
             if (s[0] == "(" or s[0] == ")"):
                 a, b = int(a), int(b)
+                c = 1
+
+                if (len(values) > 2):
+                    c = int(values[2])
 
                 if (s[0] == ")"):
                     a += 1
@@ -153,9 +158,16 @@ def random_discrete_values(n, discrete_values):
                 if (s[-1] == "("):
                     b -=1
 
-                value = random.randint(a, b)
+                #value = random.randint(a, b)
+                value = random.choice(range(a, b, c))
             elif (s[0] == "[" or s[0] == "]"):
-                value = (b - a) * random.random() + a
+                c = 10
+
+                if (len(values) > 2):
+                    c = int(values[2])
+                    value = random.choice(np.linspace(a, b, c))
+                else:
+                    value = (b - a) * random.random() + a
 
         values.append(value)
 
@@ -169,32 +181,60 @@ def round_discrete_values(values, discrete_values):
         for v in discrete_values:
             if (type(v) == str):
                 s = v
-                a, b = [float(x) for x in s[1:-1].split(",")]
+                values = [float(x) for x in s[1:-1].split(",")]
+                a, b = values[0], values[1]
 
                 assert(a <= b)
 
                 if (s[0] == "(" or s[0] == ")"):
                     a, b = int(a), int(b)
+                    c = 1
+
+                    if (len(values) > 2):
+                        c = int(values[2])
+
+                    possible_values = range(a, b, c)
 
                     if (s[0] == ")"):
-                        a += 1
-
+                        if (possible_values[0] == a):
+                            del possible_values[0]
                     if (s[-1] == "("):
-                        b -=1
+                        if (possible_values[-1] == b):
+                            del possible_values[-1]
+                else:
+                    c = 10
+
+                    if (len(values) > 2):
+                        c = int(values[2])
+
+                    possible_values = np.linspace(a, b, c)
+
+                    if (s[0] == "]"):
+                        if (possible_values[0] == a):
+                            del possible_values[0]
+                    if (s[-1] == "["):
+                        if (possible_values[-1] == b):
+                            del possible_values[-1]
 
                 if (a <= values[i] and values[i] <= b):
-                    best_diff = 0
-                    best_value = int(round(values[i]))
+                    if (len(values) > 2):
+                        for x in possible_values:
+                            if (abs(values[i] - x) < best_diff):
+                                best_diff = abs(values[i] - x)
+                                best_value = x
+                    else:
+                        best_diff = 0
+                        best_value = int(round(values[i]))
 
                     break
                 else:
-                    if (abs(values[i] - a) < best_diff):
-                        best_diff = abs(values[i] - a)
-                        best_value = a
+                    if (abs(values[i] - possible_values[0]) < best_diff):
+                        best_diff = abs(values[i] - possible_values[0])
+                        best_value = possible_values[0]
 
-                    if (abs(values[i] - b) < best_diff):
-                        best_diff = abs(values[i] - b)
-                        best_value = b
+                    if (abs(values[i] - possible_values[-1]) < best_diff):
+                        best_diff = abs(values[i] - possible_values[-1])
+                        best_value = possible_values[-1]
             else:
                 if (abs(values[i] - v) < best_diff):
                     best_diff = abs(values[i] - v)
@@ -220,7 +260,7 @@ def eaSimpleWithElitism(population, toolbox, cxpb, mutpb, ngen, elite_size=1):
 
     return population, bests
 
-def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_values = []):
+def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_values = [], brute_force_limit = 5e6):
     f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
     func = model_func(f)
 
@@ -236,8 +276,6 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
     type_, min_, max_ = range_discrete_values(discrete_values)
     all_values = all_values_discrete_values(discrete_values)
-
-    brute_force_limit = 5e6
 
     #Step #1: exhaustive algorithm
     if (len(all_values) ** len(p0) < brute_force_limit):
@@ -795,7 +833,7 @@ class Expr:
         self.opt_expr = ""
         self.loss = math.inf
 
-    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, epsloss, fixed_cst_value = None, discrete_param_values = []):
+    def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, epsloss, fixed_cst_value = None, discrete_param_values = [], brute_force_limit = 5e6):
         modules = ['numpy']
 
         for name, op in unary_ops.items():
@@ -826,7 +864,7 @@ class Expr:
             #p0 = np.random.randn(len(p0), 1)
 
             if (len(p0) <= len(y)):
-                value_params = fit(sym_expr, self.symbol_vars, symbol_params, modules, self.value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_param_values)
+                value_params = fit(sym_expr, self.symbol_vars, symbol_params, modules, self.value_vars, y, p0, loss_func, eps, epsloss, maxfev, discrete_param_values, brute_force_limit)
 
             for i in range(0, len(value_params)):
                 value_params[i] = round(value_params[i] / eps) * eps
@@ -976,7 +1014,7 @@ class Expr:
         return self
 
 def eval_binary_combination(args):
-    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, operator_depth, callback, shared_finished = args
+    expr1, expr2, name, opt_exps, binary_operator, y, loss_func, maxloss, verbose, eps, epsloss, avoided_expr, foundBreak, subs_expr, un_ops, bin_ops, maxfev, fixed_cst_value, discrete_param_values, groupId, taskId, process_sym_expr, symbols, operator_depth, callback, brute_force_limit, shared_finished = args
 
     if (shared_finished.value):
         return None
@@ -1007,7 +1045,7 @@ def eval_binary_combination(args):
     new_expr = expr1.apply_binary_op(binary_operator, expr2)
 
     try:
-        new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, discrete_param_values)
+        new_expr.compute_opt_expr(y, loss_func, subs_expr, eps, un_ops, bin_ops, maxfev, epsloss, fixed_cst_value, discrete_param_values, brute_force_limit)
     except ZeroDivisionError:
         return None
 
@@ -1059,7 +1097,8 @@ class SR:
                  operator_depth = {},
                  callback = None,
                  maxcomplexity = -1,
-                 monothread = False):
+                 monothread = False,
+                 brute_force_limit = 5e6):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -1089,6 +1128,7 @@ class SR:
         self.callback = callback
         self.maxcomplexity = maxcomplexity
         self.monothread = monothread
+        self.brute_force_limit = brute_force_limit
 
         assert(self.eps > 0)
 
@@ -1125,13 +1165,15 @@ class SR:
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value, self.discrete_param_values)
+                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
+                                       self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value, self.discrete_param_values)
+                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
+                                       self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
         if (self.verbose):
@@ -1195,7 +1237,8 @@ class SR:
 
                     try:
                         new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                                  self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value, self.discrete_param_values)
+                                                  self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
+                                                  self.discrete_param_values, self.brute_force_limit)
 
                         if (self.callback):
                             self.callback(new_expr, y)
@@ -1279,7 +1322,8 @@ class SR:
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
                                                 self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
                                                 self.discrete_param_values, groupId, len(tasks) - n + len(newTasks),
-                                                self.process_sym_expr, symbols, self.operator_depth, self.callback, shared_finished))
+                                                self.process_sym_expr, symbols, self.operator_depth, self.callback,
+                                                self.brute_force_limit, shared_finished))
 
                         if (self.maxtask > 0):
                             newTasks = newTasks[:self.maxtask]
