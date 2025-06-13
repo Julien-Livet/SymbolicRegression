@@ -1141,7 +1141,7 @@ class SR:
 
         if (self.auto_ops):
             if (len(self.unary_operators) == 0):
-                self.unary_operators = {"-": (sym_neg, operator.neg),
+                self.unary_operators = {"neg": (sym_neg, operator.neg),
                                         "abs": (sympy.Abs, operator.abs),
                                         "inv_": (sym_inv_, num_inv_),
                                         "sqrt": (sympy.sqrt, np.sqrt),
