@@ -11,6 +11,25 @@ import random
 import scipy.optimize
 import sympy
 
+def num_modules(unary_ops, binary_ops):
+    modules = ['numpy']
+
+    for name, op in unary_ops.items():
+        sym_op, num_op = op
+
+        #if (type(sym_op) == sympy.Function):
+        if (name.isidentifier()):
+            modules.append({name: num_op})
+
+    for name, op in binary_ops.items():
+        sym_op, num_op = op
+
+        #if (type(sym_op) == sympy.core.function.UndefinedFunction):
+        if (name.isidentifier()):
+            modules.append({name: num_op})
+
+    return modules
+
 def expression_complexity(expr, weights = None):
     if (weights is None):
         weights = {
@@ -835,21 +854,7 @@ class Expr:
         self.loss = math.inf
 
     def compute_opt_expr(self, y, loss_func, subs_expr, eps, unary_ops, binary_ops, maxfev, epsloss, fixed_cst_value = None, discrete_param_values = [], brute_force_limit = 5e6):
-        modules = ['numpy']
-
-        for name, op in unary_ops.items():
-            sym_op, num_op = op
-
-            #if (type(sym_op) == sympy.Function):
-            if (name.isidentifier()):
-                modules.append({name: num_op})
-
-        for name, op in binary_ops.items():
-            sym_op, num_op = op
-
-            #if (type(sym_op) == sympy.core.function.UndefinedFunction):
-            if (name.isidentifier()):
-                modules.append({name: num_op})
+        modules = num_modules(unary_ops, binary_ops)
 
         symbol_params = copy.deepcopy(self.symbol_params)
         value_params = list(copy.deepcopy(self.value_params))
