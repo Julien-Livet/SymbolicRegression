@@ -1169,12 +1169,18 @@ class SR:
                                        self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
+            if (self.callback):
+                self.callback(new_expr, y)
+
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
                                        self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
                                        self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
+
+            if (self.callback):
+                self.callback(new_expr, y)
 
         if (self.verbose):
             print("Best expression", min(opt_exprs, key = opt_exprs.get), min(opt_exprs.values()))
