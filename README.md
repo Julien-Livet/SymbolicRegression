@@ -12,12 +12,12 @@ Then the first iteration starts:
 ```discard_previous_expr``` will discard previous expressions at each level of iteration, avoiding combinatory explosion. To avoid too this explosion, ```maxloss```, ```maxexpr```, ```group_expr_size``` and ```maxtask``` are provided. Use ```process_sym_expr``` to process only target expressions.
 We can define the depth of operators with ```operator_depth``` and the maximal complexity of searched expressions with ```maxcomplexity```.
 We can apply some weights to operators for depth with ```op_weights```.
-At each combination, we compute an optimal expression. If ```discrete_param_values``` is empty, we search optimal parameters with ```scipy.fit_curve``` (```maxfev``` is used), else we use brute force algorithm if possible, else a small brute force algorithm, else a genetic algorithm with ```deap```. ```discrete_param_values``` accept integer or float values, str to define integer ranges like "(3, 5)" for 3, 4, 5, or "(3, 6, 2)" for 3, 4, or real ranges like "[3, 5, 1]" for ```np.linspace(3, 5, 1)```.
+At each combination, we compute an optimal expression. If ```discrete_param_values``` is empty, we search optimal parameters with ```scipy.fit_curve``` (```maxfev``` is used), else we use brute force algorithm if possible, else a small brute force algorithm, else a genetic algorithm with ```deap```. ```discrete_param_values``` accept integer or float values for each parameter, str to define integer ranges like "(3, 5)" for ```range(3, 5)```, or "(3, 6, 2)" for ```range(3, 6, 2)```, or real ranges like "[3, 5, 1]" for ```np.linspace(3, 5, 1)```.
 We process like that until the computed loss is less than ```epsloss```.
 ```eps``` is used to round numeric values and compare with other expressions for example.
 We can subsitute some target expressions with ```subs_expr```. We can also avoid some expressions with ```avoided_expr```.
 It is possible to call user callback during process with ```callback```.
 
-To use multiprocess functionalities, functions must be pickable and ```freeze_support``` enabled.
+To use multiprocess functionalities, functions must be pickable and ```freeze_support``` must be enabled.
 
 For more information, see existing tests.
