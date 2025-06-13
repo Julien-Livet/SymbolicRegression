@@ -181,8 +181,8 @@ def round_discrete_values(values, discrete_values):
         for v in discrete_values:
             if (type(v) == str):
                 s = v
-                values = [float(x) for x in s[1:-1].split(",")]
-                a, b = values[0], values[1]
+                vv = [float(x) for x in s[1:-1].split(",")]
+                a, b = vv[0], vv[1]
 
                 assert(a <= b)
 
@@ -190,8 +190,8 @@ def round_discrete_values(values, discrete_values):
                     a, b = int(a), int(b)
                     c = 1
 
-                    if (len(values) > 2):
-                        c = int(values[2])
+                    if (len(vv) > 2):
+                        c = int(vv[2])
 
                     possible_values = range(a, b, c)
 
@@ -204,8 +204,8 @@ def round_discrete_values(values, discrete_values):
                 else:
                     c = 10
 
-                    if (len(values) > 2):
-                        c = int(values[2])
+                    if (len(vv) > 2):
+                        c = int(vv[2])
 
                     possible_values = np.linspace(a, b, c)
 
@@ -217,7 +217,7 @@ def round_discrete_values(values, discrete_values):
                             del possible_values[-1]
 
                 if (a <= values[i] and values[i] <= b):
-                    if (len(values) > 2):
+                    if (len(vv) > 2):
                         for x in possible_values:
                             if (abs(values[i] - x) < best_diff):
                                 best_diff = abs(values[i] - x)
