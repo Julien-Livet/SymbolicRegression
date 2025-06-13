@@ -1105,7 +1105,7 @@ class SR:
                  maxcomplexity = -1,
                  monothread = False,
                  brute_force_limit = 5e6,
-                 auto_ops = True):
+                 auto_ops = False):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -1243,12 +1243,23 @@ class SR:
             importances = model.feature_importances_
             features_sorted = sorted(zip(X_feat.columns, importances), key = lambda x: x[1], reverse = True)
 
+            imp = 0
+
+            for i in range(0, len(features_sorted)):
+                features_sorted[i] = list(features_sorted[i])
+                x = features_sorted[i]
+                imp_ = x[1]
+                x.append(abs(x[1] - imp))
+                imp = imp_
+
             min_score = 0.015
+            min_r = 0.05
             un_ops = set()
             bin_ops = set()
 
-            for name, score in features_sorted:
-                if (score > min_score):
+            for name, score, r in features_sorted:
+                #if (score > min_score):
+                if (r > min_r):
                     if (ops[name] in list(self.unary_operators.keys())):
                         un_ops.add(ops[name])
                     elif (ops[name] in list(self.binary_operators.keys())):
