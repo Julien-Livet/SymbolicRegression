@@ -12,7 +12,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 license = { file = "LICENSE" }
-dependencies = ["numpy", "sympy", "scipy", "deap", "matplotlib", "scikit-learn", "requests"]
+dependencies = ["numpy", "sympy", "scipy", "deap", "matplotlib", "scikit-learn", "requests", "pandas"]
 
 [project.urls]
 Homepage = "https://github.com/Julien-Livet/SymbolicRegression"

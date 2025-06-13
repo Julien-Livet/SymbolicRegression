@@ -7,15 +7,6 @@ import sympy
 
 #Commented tests fail and need some work
 
-def sym_conv(x, y):
-    return sympy.sympify("conv(" + str(x) + ", " + str(y) + ")")
-
-def sym_inv_(x):
-    return sympy.sympify("inv_(" + str(x) + ")")
-
-def num_inv_(x):
-    return 1 / x
-
 def test_sym_expr_eq_1():
     a, b, c, d, x, y = sympy.symbols('a b c d x y')
 
@@ -143,8 +134,6 @@ def test_sym_expr_eq_16():
 def test_5x1_add_7x2_add_x3_add_8():
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add)},
-                  #discrete_param_values = [0, 1, 5, 7, 8],
-                  #discrete_param_values = ["(0, 10)"],
                   discrete_param_values = [0, "[5, 10, 10]"],
                   foundBreak = True)
 
@@ -152,36 +141,17 @@ def test_5x1_add_7x2_add_x3_add_8():
     x2 = np.array([5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47])
     x3 = np.array([3, 9, 15, 21, 27, 33, 39, 45, 51, 57, 63, 69, 75, 81, 87])
     X = [x1, x2, x3]
-    #y = 5 * x1 + 7 * x2 + x3 + 8
     y = 5.2 * x1 + 7.3 * x2 + x3 + 8.6
 
     model.fit(X, y, ["x1", "x2", "x3"])
 
     assert(len(model.bestExpressions) == 1)
-    #assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("5 * x1 + 7 * x2 + x3 + 8")))
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("5.2 * x1 + 7.3 * x2 + x3 + 8.6")))
 
 def test_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   binary_operators = {"*": (operator.mul, operator.mul)},
                   foundBreak = True)
-    #unary_operators = {"-": operator.neg,
-    #                   "abs": (sympy.Abs, operator.abs),
-    #                   "inv": (lambda x: 1 / x, lambda x: 1 / x),
-    #                   "sqrt": (sympy.sqrt, np.sqrt),
-    #                   "cos": (sympy.cos, np.cos),
-    #                   "sin": (sympy.sin, np.sin),
-    #                   "inv_": (sym_inv_, num_inv_),
-    #                   "log": (sympy.log, np.log),
-    #                   "exp": (sympy.exp, np.exp)}
-    #binary_operators = {"+": (operator.add, operator.add),
-    #                    "-": (operator.sub, operator.sub)
-    #                    "*": (operator.mul, operator.mul),
-    #                    "/": (operator.truediv, operator.truediv),
-    #                    "//": (operator.floordiv, operator.floordiv),
-    #                    "%": (operator.mod, operator.mod),
-    #                    "conv": (sym_conv, sr.convolve),
-    #                    "**": (sympy.Pow, operator.pow}
 
     n = 10
     x1 = np.random.rand(n)

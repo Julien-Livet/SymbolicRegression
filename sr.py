@@ -6,6 +6,7 @@ import multiprocessing
 import multiprocessing.dummy
 import numpy as np
 import operator
+import pandas as pd
 import random
 import scipy.optimize
 import sympy
@@ -1077,7 +1078,7 @@ class SR:
                  maxloss = math.inf,
                  maxexpr = -1,
                  discard_previous_expr = False,
-                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False, "%": False}, #True for strict symmetry
+                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False}, #True for strict symmetry
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
@@ -1098,7 +1099,8 @@ class SR:
                  callback = None,
                  maxcomplexity = -1,
                  monothread = False,
-                 brute_force_limit = 5e6):
+                 brute_force_limit = 5e6,
+                 auto_ops = True):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -1129,12 +1131,38 @@ class SR:
         self.maxcomplexity = maxcomplexity
         self.monothread = monothread
         self.brute_force_limit = brute_force_limit
+        self.auto_ops = auto_ops
 
         assert(self.eps > 0)
 
         self.expressions = []
         self.bestExpressions = []
         self.lastIteration = -1
+
+        if (self.auto_ops):
+            if (len(self.unary_operators) == 0):
+                self.unary_operators = {"-": (sym_neg, operator.neg),
+                                        "abs": (sympy.Abs, operator.abs),
+                                        "inv_": (sym_inv_, num_inv_),
+                                        "sqrt": (sympy.sqrt, np.sqrt),
+                                        "cos": (sympy.cos, np.cos),
+                                        "sin": (sympy.sin, np.sin),
+                                        "exp": (sympy.tan, np.tan),
+                                        "log": (sympy.log, np.log),
+                                        "exp": (sympy.exp, np.exp),
+                                        "sinh": (sympy.sinh, np.sinh),
+                                        "cosh": (sympy.cosh, np.cosh),
+                                        "floor": (sym_floor, np.ceil),
+                                        "ceil": (sym_ceil, np.floor)}
+
+            if (len(self.binary_operators) == 0):
+                self.binary_operators = {"+": (operator.add, operator.add),
+                                         "-": (operator.sub, operator.sub),
+                                         "*": (operator.mul, operator.mul),
+                                         "/": (operator.truediv, operator.truediv),
+                                         "//": (operator.floordiv, operator.floordiv),
+                                         "%": (operator.mod, operator.mod),
+                                         "**": (sympy.Pow, operator.pow)}
 
     def fit(self, X, y, variable_names = []):
         y = np.array(y, dtype = np.float64)
@@ -1159,13 +1187,93 @@ class SR:
         elif (len(symbols) > len(X)):
             symbols = symbols[:len(X)]
 
+        unary_operators = copy.deepcopy(self.unary_operators)
+        binary_operators = copy.deepcopy(self.binary_operators)
+
+        if (self.auto_ops):
+            X_raw = pd.DataFrame()
+            
+            for i in range(0, len(symbols)):
+                X_raw[str(symbols[i])] = X[i]
+
+            feature_dict = {}
+            base_vars = [str(x) for x in symbols]
+            ops = {}
+
+            for k, v in self.unary_operators.items():
+                sym_op, num_op = v
+
+                for var in symbols:
+                    feature_dict[str(sym_op(var))] = num_op(X_raw[str(var)])
+                    ops[str(sym_op(var))] = k
+
+            for k, v in self.binary_operators.items():
+                sym_op, num_op = v
+                
+                indices1 = list(range(0, len(symbols)))
+
+                for i1 in indices1:
+                    indices2 = list(range(0, len(symbols)))
+
+                    if (k in list(self.symmetric_binary_operators.keys())):
+                        indices2 = list(range(i1 + 1 if v else i1, len(base_vars)))
+                                    
+                    for i2 in indices2:
+                        feature_dict[str(sym_op(symbols[i1], symbols[i2]))] = num_op(X_raw[str(symbols[i1])], X_raw[str(symbols[i2])])
+                        ops[str(sym_op(symbols[i1], symbols[i2]))] = k
+
+            X_feat = pd.DataFrame(feature_dict)
+            
+            X_feat = X_feat.replace([np.inf, -np.inf, np.nan], 0)
+            X_feat = X_feat.loc[:, (X_feat.abs().max() < 1e6)]
+            
+            from sklearn.ensemble import RandomForestRegressor
+            from sklearn.model_selection import train_test_split
+
+            X_train, X_test, y_train, y_test = train_test_split(X_feat, y, test_size = 0.2, random_state = 0)
+
+            model = RandomForestRegressor(n_estimators = 200, random_state = 0)
+            model.fit(X_train, y_train)
+
+            importances = model.feature_importances_
+            features_sorted = sorted(zip(X_feat.columns, importances), key = lambda x: x[1], reverse = True)
+
+            min_score = 0.015
+            un_ops = set()
+            bin_ops = set()
+
+            for name, score in features_sorted:
+                if (score > min_score):
+                    if (ops[name] in list(self.unary_operators.keys())):
+                        un_ops.add(ops[name])
+                    elif (ops[name] in list(self.binary_operators.keys())):
+                        bin_ops.add(ops[name])  
+
+            keys = []
+            for k, v in unary_operators.items():
+                if (not k in un_ops):
+                    keys.append(k)
+            for k in keys:
+                del unary_operators[k]
+
+            keys = []
+            for k, v in binary_operators.items():
+                if (not k in bin_ops):
+                    keys.append(k)
+            for k in keys:
+                del binary_operators[k]
+                                    
+            if (self.verbose):
+                print("Considered unary operators:", un_ops)
+                print("Considered binary operators:", bin_ops)
+
         exprs = []
         opt_exprs = {}
 
         for i in range(0, len(symbols)):
             exprs.append(Expr(symbols[i], X[i]))
-            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
+            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, unary_operators,
+                                       binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
                                        self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
@@ -1174,8 +1282,8 @@ class SR:
 
         for ee in self.extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
-            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                       self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
+            exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, unary_operators,
+                                       binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
                                        self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
 
@@ -1218,7 +1326,7 @@ class SR:
 
             exprs_to_process = []
 
-            for name, unary_operator in self.unary_operators.items():
+            for name, unary_operator in unary_operators.items():
                 for expr in exprs:
                     process = True
 
@@ -1242,8 +1350,8 @@ class SR:
                     new_expr = expr[0].apply_unary_op(expr[1])
 
                     try:
-                        new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, self.unary_operators,
-                                                  self.binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
+                        new_expr.compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, unary_operators,
+                                                  binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
                                                   self.discrete_param_values, self.brute_force_limit)
 
                         if (self.callback):
@@ -1267,7 +1375,7 @@ class SR:
                     if (finished):
                         break
 
-            if (len(self.unary_operators)):
+            if (len(unary_operators)):
                 if (self.discard_previous_expr):
                     exprs = newExprs
                 else:
@@ -1299,7 +1407,7 @@ class SR:
             with multiprocessing.Manager() as manager:
                 shared_finished = manager.Value('b', False)
 
-                for name, binary_operator in self.binary_operators.items():
+                for name, binary_operator in binary_operators.items():
                     for groupId in range(0, len(groups)):
                         group = groups[groupId]
                         indices1 = list(range(0, len(group)))
@@ -1314,10 +1422,8 @@ class SR:
                         for i1 in indices1:
                             indices2 = list(range(0, len(group)))
 
-                            for k, v in self.symmetric_binary_operators.items():
-                                if (name == k):
-                                    indices2 = list(range(i1 + 1 if v else i1, len(group)))
-                                    break
+                            if (name in list(self.symmetric_binary_operators.keys())):
+                                indices2 = list(range(i1 + 1 if v else i1, len(group)))
 
                             if (self.shuffle_indices):
                                 random.shuffle(indices2)
@@ -1326,7 +1432,7 @@ class SR:
                                 newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                                 self.elementwise_loss, self.maxloss, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
-                                                self.unary_operators, self.binary_operators, self.maxfev, self.fixed_cst_value,
+                                                unary_operators, binary_operators, self.maxfev, self.fixed_cst_value,
                                                 self.discrete_param_values, groupId, len(tasks) - n + len(newTasks),
                                                 self.process_sym_expr, symbols, self.operator_depth, self.callback,
                                                 self.brute_force_limit, shared_finished))
@@ -1347,19 +1453,31 @@ class SR:
                 shared_value = manager.Value('i', symbolIndex)
 
                 if (self.monothread):
+                    if (self.verbose):
+                        print("Monothread process")
+                    
                     for t in tasks:
                         results.append(eval_binary_combination(t))
                 else:
                     import _pickle
                 
                     try:
+                        if (self.verbose):
+                            print("multiprocessing process")
+                        
                         with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                             results = pool.map(eval_binary_combination, tasks)
-                    except (_pickle.PicklingError, RuntimeError) as e:
+                    except (_pickle.PicklingError, RuntimeError, AttributeError) as e:
                         try:
+                            if (self.verbose):
+                                print("multiprocessing.dummy process")
+                            
                             with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                                 results = pool.map(eval_binary_combination, tasks) 
                         except BrokenPipeError:
+                            if (self.verbose):
+                                print("Monothread process")
+                            
                             for t in tasks:
                                 results.append(eval_binary_combination(t))
 
@@ -1432,3 +1550,21 @@ class SR:
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
+
+def sym_conv(x, y):
+    return sympy.sympify("conv(" + str(x) + ", " + str(y) + ")")
+
+def sym_inv_(x):
+    return sympy.sympify("inv_(" + str(x) + ")")
+
+def num_inv_(x):
+    return 1 / x
+
+def sym_neg(x):
+    return sympy.sympify("neg(" + str(x) + ")")
+
+def sym_floor(x):
+    return sympy.sympify("floor(" + str(x) + ")")
+
+def sym_ceil(x):
+    return sympy.sympify("ceil(" + str(x) + ")")
