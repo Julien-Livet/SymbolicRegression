@@ -20,5 +20,6 @@ We can subsitute some target expressions with ```subs_expr```. We can also avoid
 It is possible to call user callback during process with ```callback```.
 
 To use multiprocess functionalities, functions must be pickable and ```freeze_support``` must be enabled.
+It is possible to export results to CSV file with ```csv_filename```.
 
 For more information, see existing tests.
