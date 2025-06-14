@@ -1174,7 +1174,8 @@ class SR:
                                          "/": (operator.truediv, operator.truediv),
                                          "//": (operator.floordiv, operator.floordiv),
                                          "%": (operator.mod, operator.mod),
-                                         "**": (sympy.Pow, operator.pow)}
+                                         "**": (sympy.Pow, operator.pow),
+                                         "conv": (sym_conv, convolve)}
 
     def fit(self, X, y, variable_names = []):
         y = np.array(y, dtype = np.float64)
@@ -1280,7 +1281,7 @@ class SR:
             if ("sin" in un_ops or "cos" in un_ops):
                 un_ops.add("sin")
                 un_ops.add("cos")
-d
+
             keys = []
             for k, v in unary_operators.items():
                 if (not k in un_ops):
