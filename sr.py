@@ -1149,7 +1149,7 @@ class SR:
                 self.unary_operators = {"neg": (sym_neg, operator.neg),
                                         "abs": (sympy.Abs, operator.abs),
                                         "inv_": (sym_inv_, num_inv_),
-                                        "sqrt": (sympy.sqrt, np.sqrt),
+                                        "sqrt": (sym_sqrt, np.sqrt),
                                         "cos": (sympy.cos, np.cos),
                                         "sin": (sympy.sin, np.sin),
                                         "tan": (sympy.tan, np.tan),
@@ -1600,3 +1600,6 @@ def sym_floor(x):
 
 def sym_ceil(x):
     return sympy.sympify("ceil(" + str(x) + ")")
+
+def sym_sqrt(x):
+    return sympy.sympify("sqrt(" + str(x) + ")")
