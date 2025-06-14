@@ -1152,11 +1152,18 @@ class SR:
                                         "sqrt": (sympy.sqrt, np.sqrt),
                                         "cos": (sympy.cos, np.cos),
                                         "sin": (sympy.sin, np.sin),
-                                        "exp": (sympy.tan, np.tan),
+                                        "tan": (sympy.tan, np.tan),
+                                        "acos": (sympy.cos, np.acos),
+                                        "asin": (sympy.sin, np.asin),
+                                        "atan": (sympy.tan, np.atan),
                                         "log": (sympy.log, np.log),
                                         "exp": (sympy.exp, np.exp),
                                         "sinh": (sympy.sinh, np.sinh),
                                         "cosh": (sympy.cosh, np.cosh),
+                                        "tanh": (sympy.cosh, np.tanh),
+                                        "asinh": (sympy.sinh, np.asinh),
+                                        "acosh": (sympy.cosh, np.acosh),
+                                        "atanh": (sympy.cosh, np.atanh),
                                         "floor": (sym_floor, np.ceil),
                                         "ceil": (sym_ceil, np.floor)}
 
@@ -1265,6 +1272,15 @@ class SR:
                     elif (ops[name] in list(self.binary_operators.keys())):
                         bin_ops.add(ops[name])  
 
+            if ("sinh" in un_ops or "cosh" in un_ops or "exp" in un_ops):
+                un_ops.add("exp")
+                un_ops.add("sinh")
+                un_ops.add("cosh")
+
+            if ("sin" in un_ops or "cos" in un_ops):
+                un_ops.add("sin")
+                un_ops.add("cos")
+d
             keys = []
             for k, v in unary_operators.items():
                 if (not k in un_ops):
