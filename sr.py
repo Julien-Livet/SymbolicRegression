@@ -1161,8 +1161,8 @@ class SR:
                                         "sinh": (sympy.sinh, np.sinh),
                                         "cosh": (sympy.cosh, np.cosh),
                                         "tanh": (sympy.tanh, np.tanh),
-                                        "asinh": (sympy.sinh, np.asinh),
-                                        "acosh": (sympy.cosh, np.acosh),
+                                        "asinh": (sympy.asinh, np.asinh),
+                                        "acosh": (sympy.acosh, np.acosh),
                                         "atanh": (sympy.atanh, np.atanh),
                                         "floor": (sym_floor, np.floor),
                                         "ceil": (sym_ceil, np.ceil)}
