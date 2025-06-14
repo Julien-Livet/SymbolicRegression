@@ -1496,24 +1496,33 @@ class SR:
         if (len(self.bestExpressions)):
             if (self.csv_filename):
                 df = pd.DataFrame()
-                df["sym_expr"] = []
-                df["opt_expr"] = []
-                df["loss"] = []
-                df["sym_complexity"] = []
-                df["opt_complexity"] = []
+
+                df_sym_expr = []
+                df_opt_expr = []
+                df_loss = []
+                df_sym_complexity = []
+                df_opt_complexity = []
                 
-                for e in sortedOpt_exprs:
-                    df["sym_expr"].append(e.sym_expr)
-                    df["opt_expr"].append(e.opt_expr)
-                    df["loss"].append(e.loss)
-                    df["sym_complexity"].append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
-                    df["opt_complexity"].append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
+                for e in self.expressions:
+                    df_sym_expr.append(e.sym_expr)
+                    df_opt_expr.append(e.opt_expr)
+                    df_loss.append(e.loss)
+                    df_sym_complexity.append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
+                    df_opt_complexity.append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
+                    
+                df["sym_expr"] = df_sym_expr
+                df["opt_expr"] = df_opt_expr
+                df["loss"] = df_loss
+                df["sym_complexity"] = df_sym_complexity
+                df["opt_complexity"] = df_opt_complexity
+
+                df = df.sort_values(by = "loss")
 
                 df.to_csv(self.csv_filename)
 
             return
 
-        self.expressions = []
+        self.expressions = exprs
 
         for j in range(0, self.niterations):
             if (self.verbose):
@@ -1728,6 +1737,8 @@ class SR:
 
             if (finished):
                 break
+                
+        self.expressions = exprs
 
         losses = [value for key, value in opt_exprs.items()]
         sortedLosses, sortedOpt_exprs = zip(*sorted(zip(losses, list(opt_exprs.keys()))))
@@ -1753,18 +1764,27 @@ class SR:
 
         if (self.csv_filename):
             df = pd.DataFrame()
-            df["sym_expr"] = []
-            df["opt_expr"] = []
-            df["loss"] = []
-            df["sym_complexity"] = []
-            df["opt_complexity"] = []
+
+            df_sym_expr = []
+            df_opt_expr = []
+            df_loss = []
+            df_sym_complexity = []
+            df_opt_complexity = []
+
+            for e in self.expressions:
+                df_sym_expr.append(e.sym_expr)
+                df_opt_expr.append(e.opt_expr)
+                df_loss.append(e.loss)
+                df_sym_complexity.append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
+                df_opt_complexity.append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
+                
+            df["sym_expr"] = df_sym_expr
+            df["opt_expr"] = df_opt_expr
+            df["loss"] = df_loss
+            df["sym_complexity"] = df_sym_complexity
+            df["opt_complexity"] = df_opt_complexity
             
-            for e in sortedOpt_exprs:
-                df["sym_expr"].append(e.sym_expr)
-                df["opt_expr"].append(e.opt_expr)
-                df["loss"].append(e.loss)
-                df["sym_complexity"].append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
-                df["opt_complexity"].append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
+            df = df.sort_values(by = "loss")
 
             df.to_csv(self.csv_filename)
 
