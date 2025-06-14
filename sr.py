@@ -1164,8 +1164,8 @@ class SR:
                                         "asinh": (sympy.sinh, np.asinh),
                                         "acosh": (sympy.cosh, np.acosh),
                                         "atanh": (sympy.cosh, np.atanh),
-                                        "floor": (sym_floor, np.ceil),
-                                        "ceil": (sym_ceil, np.floor)}
+                                        "floor": (sym_floor, np.floor),
+                                        "ceil": (sym_ceil, np.ceil)}
 
             if (len(self.binary_operators) == 0):
                 self.binary_operators = {"+": (operator.add, operator.add),
