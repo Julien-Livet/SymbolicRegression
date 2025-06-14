@@ -62,12 +62,12 @@ class Tree:
         if (isinstance(self.leaf1, Tree)):
             u, b = self.leaf1.ops(unary_ops, binary_ops)
             un_ops += u
-            bn_ops += b
+            bin_ops += b
 
         if (isinstance(self.leaf2, Tree)):
             u, b = self.leaf2.ops(unary_ops, binary_ops)
             un_ops += u
-            bn_ops += b
+            bin_ops += b
 
         return un_ops, bin_ops
 
@@ -132,9 +132,9 @@ def necessary_ops(X, y, symbols, unary_ops, binary_ops, symmetric_binary_operato
             for i1 in indices1:
                 indices2 = list(range(0, len(trees)))
 
-                for key, value in self.symmetric_binary_operators.items():
+                for key, value in symmetric_binary_operators.items():
                     if (k == key):
-                        indices2 = list(range(i1 + 1 if value else i1, len(group)))
+                        indices2 = list(range(i1 + 1 if value else i1, len(trees)))
                         break
                                 
                 for i2 in indices2:
