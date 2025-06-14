@@ -11,6 +11,153 @@ import random
 import scipy.optimize
 import sympy
 
+class Tree:
+    def __init__(self, name, op, leaf1, sym_x1 = None, num_x1 = None, leaf2 = None, sym_x2 = None, num_x2 = None):
+        self.name = name
+        self.op = op
+        self.leaf1 = leaf1
+        self.leaf2 = leaf2
+        self.sym_x1 = sym_x1
+        self.num_x1 = num_x1
+        self.sym_x2 = sym_x2
+        self.num_x2 = num_x2
+    
+    def evalf(self, modules):
+        leaf1 = copy.deepcopy(self.leaf1)
+        x = 0
+        
+        if (isinstance(leaf1, sympy.Symbol)):
+            f = sympy.lambdify(self.sym_x1, leaf1, modules = modules)
+            x = f(self.num_x1)
+        else:
+            x = leaf1.evalf(modules)
+
+        leaf2 = copy.deepcopy(self.leaf2)
+
+        if (leaf2 == None):
+            if (self.op):
+                return self.op[1](x)
+            else:
+                return x
+        
+        y = 0
+        
+        if (isinstance(leaf2, sympy.Symbol)):
+            f = sympy.lambdify(self.sym_x2, leaf2, modules = modules)
+            y = f(self.num_x2)
+        else:
+            y = leaf2.evalf(modules)
+        
+        return self.op[1](x, y)
+        
+    def ops(self, unary_ops, binary_ops):
+        un_ops = []
+        bin_ops = []
+        
+        if (self.name in unary_ops):
+            un_ops.append(self.name)
+        elif (self.name in binary_ops):
+            bin_ops.append(self.name)
+
+        if (isinstance(self.leaf1, Tree)):
+            u, b = self.leaf1.ops(unary_ops, binary_ops)
+            un_ops += u
+            bn_ops += b
+
+        if (isinstance(self.leaf2, Tree)):
+            u, b = self.leaf2.ops(unary_ops, binary_ops)
+            un_ops += u
+            bn_ops += b
+
+        return un_ops, bin_ops
+
+    def __str__(self):
+        return " ".join(str(x) for x in [self.name, self.leaf1, self.leaf2])
+
+def necessary_ops(X, y, symbols, unary_ops, binary_ops, symmetric_binary_operators):
+    y_ = copy.deepcopy(y)
+
+    un_ops = []
+    bin_ops = []
+    
+    modules = num_modules(unary_ops, binary_ops)
+
+    trees = []
+    correlations = []
+    
+    for i in range(0, len(symbols)):
+        trees.append(Tree("", None, symbols[i], symbols[i], X[i]))
+        correlations.append(abs(np.corrcoef(trees[-1].evalf(modules), y_)[0, 1]))
+
+        if (np.isnan(correlations[-1])):
+            correlations[-1] = 0
+
+    l = sorted(zip(trees, correlations), key = lambda x: x[1])
+
+    #TODO: Eval trees
+    #
+
+    depth = 1
+
+    for i in range(0, depth):
+        new_trees = []
+        correlations = []
+        
+        for k, v in unary_ops.items():
+            
+            for t in trees:
+                new_trees.append(Tree(k, v, t))
+                correlations.append(abs(np.corrcoef(new_trees[-1].evalf(modules), y_)[0, 1]))
+
+                if (np.isnan(correlations[-1])):
+                    correlations[-1] = 0
+
+        #trees += new_trees
+
+        l = sorted(zip(new_trees, correlations), key = lambda x: x[1])
+
+        for i in range(0, len(l)):
+            if (l[i][1] > 0.9):
+                print(l[i][1], l[i][0])
+                trees.append(l[i][0])
+
+        #TODO: Eval new_trees
+
+        new_trees = []
+        correlations = []
+
+        for k, v in binary_ops.items():
+            indices1 = list(range(0, len(trees)))
+
+            for i1 in indices1:
+                indices2 = list(range(0, len(trees)))
+
+                for key, value in self.symmetric_binary_operators.items():
+                    if (k == key):
+                        indices2 = list(range(i1 + 1 if value else i1, len(group)))
+                        break
+                                
+                for i2 in indices2:
+                    new_trees.append(Tree(k, v, trees[i1], leaf2 = trees[i2]))
+                    correlations.append(abs(np.corrcoef(new_trees[-1].evalf(modules), y_)[0, 1]))
+
+                    if (np.isnan(correlations[-1])):
+                        correlations[-1] = 0
+
+        #trees += new_trees
+
+        l = sorted(zip(new_trees, correlations), key = lambda x: x[1])
+
+        for i in range(0, len(l)):
+            if (l[i][1] > 0.9):
+                print(l[i][1], l[i][0])
+                trees.append(l[i][0])
+        exit()
+        
+        #TODO: Eval new_trees
+
+    return un_ops, bin_ops
+
 def num_modules(unary_ops, binary_ops):
     modules = ['numpy']
 
@@ -1105,7 +1252,8 @@ class SR:
                  maxcomplexity = -1,
                  monothread = False,
                  brute_force_limit = 5e6,
-                 auto_ops = False):
+                 auto_ops = False,
+                 csv_filename = None):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -1137,6 +1285,7 @@ class SR:
         self.monothread = monothread
         self.brute_force_limit = brute_force_limit
         self.auto_ops = auto_ops
+        self.csv_filename = csv_filename
 
         assert(self.eps > 0)
 
@@ -1204,6 +1353,8 @@ class SR:
         binary_operators = copy.deepcopy(self.binary_operators)
 
         if (self.auto_ops):
+            #un_ops, bin_ops = necessary_ops(X, y, symbols, unary_operators, binary_operators, self.symmetric_binary_operators)
+        
             X_raw = pd.DataFrame()
             
             for i in range(0, len(symbols)):
@@ -1229,7 +1380,7 @@ class SR:
                     indices2 = list(range(0, len(symbols)))
 
                     if (k in list(self.symmetric_binary_operators.keys())):
-                        indices2 = list(range(i1 + 1 if v else i1, len(base_vars)))
+                        indices2 = list(range(i1 + 1 if v else i1, len(symbols)))
                                     
                     for i2 in indices2:
                         feature_dict[str(sym_op(symbols[i1], symbols[i2]))] = num_op(X_raw[str(symbols[i1])], X_raw[str(symbols[i2])])
@@ -1343,6 +1494,23 @@ class SR:
                 self.bestExpressions.append((expr, sortedLosses[i]))
 
         if (len(self.bestExpressions)):
+            if (self.csv_filename):
+                df = pd.DataFrame()
+                df["sym_expr"] = []
+                df["opt_expr"] = []
+                df["loss"] = []
+                df["sym_complexity"] = []
+                df["opt_complexity"] = []
+                
+                for e in sortedOpt_exprs:
+                    df["sym_expr"].append(e.sym_expr)
+                    df["opt_expr"].append(e.opt_expr)
+                    df["loss"].append(e.loss)
+                    df["sym_complexity"].append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
+                    df["opt_complexity"].append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
+
+                df.to_csv(self.csv_filename)
+
             return
 
         self.expressions = []
@@ -1455,8 +1623,10 @@ class SR:
                         for i1 in indices1:
                             indices2 = list(range(0, len(group)))
 
-                            if (name in list(self.symmetric_binary_operators.keys())):
-                                indices2 = list(range(i1 + 1 if v else i1, len(group)))
+                            for k, v in self.symmetric_binary_operators.items():
+                                if (name == k):
+                                    indices2 = list(range(i1 + 1 if v else i1, len(group)))
+                                    break
 
                             if (self.shuffle_indices):
                                 random.shuffle(indices2)
@@ -1580,6 +1750,23 @@ class SR:
                 self.bestExpressions = [(sympy.simplify(sortedOpt_exprs[i]), sortedLosses[i])]
 
             i += 1
+
+        if (self.csv_filename):
+            df = pd.DataFrame()
+            df["sym_expr"] = []
+            df["opt_expr"] = []
+            df["loss"] = []
+            df["sym_complexity"] = []
+            df["opt_complexity"] = []
+            
+            for e in sortedOpt_exprs:
+                df["sym_expr"].append(e.sym_expr)
+                df["opt_expr"].append(e.opt_expr)
+                df["loss"].append(e.loss)
+                df["sym_complexity"].append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
+                df["opt_complexity"].append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
+
+            df.to_csv(self.csv_filename)
 
 def convolve(x, y):
     return np.array([np.sum(np.convolve(x[:i], y[:i])) for i in range(1, len(x) + 1)])
