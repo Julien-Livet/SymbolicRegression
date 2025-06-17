@@ -1483,7 +1483,7 @@ class SR:
             
             for i in range(0, self.auto_ops_depth[0]):
                 symnet_un.add_layer()
-                un_ops_un, bin_ops_un, best_exprs_un, best_nodes_un = symnet_un.fit(y)
+                un_ops_un, bin_ops_un, best_exprs_un, best_nodes_un = symnet_un.fit(y, self.elementwise_loss)
             
             if (self.verbose):
                 print("Auto unary operators", best_exprs_un, un_ops_un)
@@ -1494,7 +1494,7 @@ class SR:
                 symnet_bin.nodes = best_nodes_un
                 symnet_bin.add_layer()
 
-            un_ops_bin, bin_ops_bin, best_exprs_bin, best_nodes_bin = symnet_bin.fit(y)
+            un_ops_bin, bin_ops_bin, best_exprs_bin, best_nodes_bin = symnet_bin.fit(y, self.elementwise_loss)
             
             if (self.verbose):
                 print("Auto binary operators", best_exprs_bin, bin_ops_bin)
