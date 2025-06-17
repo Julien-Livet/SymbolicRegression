@@ -259,9 +259,6 @@ class SymNet:
         self.a = la[0][1]
         self.b = lb[0][1]
 
-        print(self.a)
-        print(self.b)
-
         le = sorted(zip(losses, exprs), key = lambda x: x[0], reverse = True)
 
         m = 0.75 * le[0][0]
@@ -765,10 +762,44 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
                 if (best_loss < epsloss):
                     return value_params
 
-    #Fall back to genetic algorithm
-
     f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
     func = model_func(f)
+
+    #Fall back to curve_fit method
+
+    best_loss = np.inf
+    value_params = p0
+
+    for j in range(0, maxfev):
+        params = np.zeros(len(p0))
+        loop = True
+        count = 0
+        
+        while (loop):
+            params = np.random.uniform(min_, max_, size = len(p0))
+            params = round_discrete_values(params, discrete_values)
+            r = func(value_vars, *params)
+            count += 1
+            loop = not np.isfinite(r).all() and count < 30
+
+        try:
+            params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = params, maxfev = maxfev)
+            params = round_discrete_values(params, discrete_values)
+        except RuntimeError as e:
+            print(e)
+    
+        l = loss_func(func(value_vars, *params), y)
+        
+        if (l < best_loss):
+            best_loss = l
+            value_params = params
+            
+            if (l < epsloss):
+                break
+
+    return value_params
+
+    #Fall back to genetic algorithm
 
     creator.create("FitnessMin", base.Fitness, weights = (-1.0,))
     creator.create("Individual", list, fitness = creator.FitnessMin)
