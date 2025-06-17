@@ -11,8 +11,27 @@ import random
 import scipy.optimize
 import sympy
 
-class Tree:
-    def __init__(self, name, op, leaf1, sym_x1 = None, num_x1 = None, leaf2 = None, sym_x2 = None, num_x2 = None):
+def mse_loss(x, y):
+    l = np.sum((x - y) ** 2)
+
+    if (np.isnan(l)):
+        return np.inf
+
+    return l
+
+def model_func(func):
+    def model(x, *args):
+        try:
+            return np.array(func(*x, *args), dtype = np.float64)
+        except ZeroDivisionError:
+            return math.nan
+
+    return model
+
+class Node:
+    def __init__(self, symnet, name, op, leaf1, sym_x1 = None, num_x1 = None, leaf2 = None, sym_x2 = None, num_x2 = None):
+        self.symnet = symnet
+        self.index = symnet.add_param()
         self.name = name
         self.op = op
         self.leaf1 = leaf1
@@ -21,6 +40,33 @@ class Tree:
         self.num_x1 = num_x1
         self.sym_x2 = sym_x2
         self.num_x2 = num_x2
+        self.considered = True
+        
+    def un_ops(self, unary_ops):
+        un_ops = set()
+        
+        if (self.name in unary_ops):
+            un_ops.add(self.name)
+        
+        if (type(self.leaf1) is Node):
+            un_ops |= self.leaf1.un_ops(unary_ops)
+        if (type(self.leaf2) is Node):
+            un_ops |= self.leaf2.un_ops(unary_ops)
+        
+        return un_ops
+    
+    def bin_ops(self, binary_ops):
+        bin_ops = set()
+        
+        if (self.name in binary_ops):
+            bin_ops.add(self.name)
+        
+        if (type(self.leaf1) is Node):
+            bin_ops |= self.leaf1.bin_ops(binary_ops)
+        if (type(self.leaf2) is Node):
+            bin_ops |= self.leaf2.bin_ops(binary_ops)
+        
+        return bin_ops
     
     def evalf(self, modules):
         leaf1 = copy.deepcopy(self.leaf1)
@@ -36,7 +82,7 @@ class Tree:
 
         if (leaf2 == None):
             if (self.op):
-                return self.op[1](x)
+                return self.symnet.a[self.index] * self.op[1](x) + self.symnet.b[self.index]
             else:
                 return x
         
@@ -48,115 +94,195 @@ class Tree:
         else:
             y = leaf2.evalf(modules)
         
-        return self.op[1](x, y)
-        
-    def ops(self, unary_ops, binary_ops):
-        un_ops = []
-        bin_ops = []
-        
-        if (self.name in unary_ops):
-            un_ops.append(self.name)
-        elif (self.name in binary_ops):
-            bin_ops.append(self.name)
-
-        if (isinstance(self.leaf1, Tree)):
-            u, b = self.leaf1.ops(unary_ops, binary_ops)
-            un_ops += u
-            bin_ops += b
-
-        if (isinstance(self.leaf2, Tree)):
-            u, b = self.leaf2.ops(unary_ops, binary_ops)
-            un_ops += u
-            bin_ops += b
-
-        return un_ops, bin_ops
-
-    def __str__(self):
-        return " ".join(str(x) for x in [self.name, self.leaf1, self.leaf2])
-
-def necessary_ops(X, y, symbols, unary_ops, binary_ops, symmetric_binary_operators):
-    y_ = copy.deepcopy(y)
-
-    un_ops = []
-    bin_ops = []
+        return self.symnet.a[self.index] * self.op[1](x, y) + self.symnet.b[self.index]
     
-    modules = num_modules(unary_ops, binary_ops)
-
-    trees = []
-    correlations = []
+    def expr(self):
+        a = "a" + str(self.index)
+        b = "b" + str(self.index)
     
-    for i in range(0, len(symbols)):
-        trees.append(Tree("", None, symbols[i], symbols[i], X[i]))
-        correlations.append(abs(np.corrcoef(trees[-1].evalf(modules), y_)[0, 1]))
-
-        if (np.isnan(correlations[-1])):
-            correlations[-1] = 0
-
-    l = sorted(zip(trees, correlations), key = lambda x: x[1])
-
-    #TODO: Eval trees
-    #
-
-    depth = 1
-
-    for i in range(0, depth):
-        new_trees = []
-        correlations = []
-        
-        for k, v in unary_ops.items():
+        if (isinstance(self.leaf1, sympy.Symbol)):
+            return sympy.sympify(a + "*" + str(self.leaf1) + "+" + b)
             
-            for t in trees:
-                new_trees.append(Tree(k, v, t))
-                correlations.append(abs(np.corrcoef(new_trees[-1].evalf(modules), y_)[0, 1]))
+        if (self.leaf2 == None):
+            if (self.op):
+                return sympy.sympify(a + "*(" + str(self.op[0](self.leaf1.expr())) + ")+" + b)
+                
+        return sympy.sympify(a + "*(" + str(self.op[0](self.leaf1.expr(), self.leaf2.expr())) + ")+" + b)
 
-                if (np.isnan(correlations[-1])):
-                    correlations[-1] = 0
+class SymNet:
+    def __init__(self, X, symbols, un_ops, bin_ops, symm_bin_ops):
+        self.X = X
+        self.symbols = symbols
+        self.un_ops = un_ops
+        self.bin_ops = bin_ops
+        self.un_ops_index = 0
+        self.bin_ops_comb = dict(zip(list(self.bin_ops.keys()), [[] for x in self.bin_ops.keys()]))
+        self.symm_bin_ops = symm_bin_ops
+        self.a = []
+        self.b = []
+        self.nodes = []
+        
+        assert(len(X) == len(symbols))
+        
+        for i in range(0, len(X)):
+            self.nodes.append(Node(self, "", None, symbols[i], symbols[i], X[i]))
 
-        #trees += new_trees
+    def add_param(self):
+        self.a = np.array(list(self.a) + [0])
+        self.b = np.array(list(self.b) + [0])
+        
+        return len(self.a) - 1
 
-        l = sorted(zip(new_trees, correlations), key = lambda x: x[1])
+    def add_layer(self):    
+        new_nodes = []
+    
+        for k, v in self.un_ops.items():
+            for n in self.nodes[self.un_ops_index:]:
+                if (n.considered):
+                    new_nodes.append(Node(self, k, v, n))
 
-        for i in range(0, len(l)):
-            if (l[i][1] > 0.9):
-                print(l[i][1], l[i][0])
-                trees.append(l[i][0])
-
-        #TODO: Eval new_trees
-
-        new_trees = []
-        correlations = []
-
-        for k, v in binary_ops.items():
-            indices1 = list(range(0, len(trees)))
+        self.un_ops_index = len(self.nodes)
+        self.nodes += new_nodes
+        
+        new_nodes = []
+    
+        for k, v in self.bin_ops.items():
+            indices1 = list(range(0, len(self.nodes)))
 
             for i1 in indices1:
-                indices2 = list(range(0, len(trees)))
+                indices2 = list(range(0, len(self.nodes)))
 
-                for key, value in symmetric_binary_operators.items():
+                for key, value in self.symm_bin_ops.items():
                     if (k == key):
-                        indices2 = list(range(i1 + 1 if value else i1, len(trees)))
+                        indices2 = list(range(i1 + 1 if value else i1, len(self.nodes)))
                         break
                                 
                 for i2 in indices2:
-                    new_trees.append(Tree(k, v, trees[i1], leaf2 = trees[i2]))
-                    correlations.append(abs(np.corrcoef(new_trees[-1].evalf(modules), y_)[0, 1]))
+                    if (not (i1, i2) in self.bin_ops_comb[k]):
+                        self.bin_ops_comb[k].append((i1, i2))
+                        
+                        if (self.nodes[i1].considered and self.nodes[i2].considered):
+                            new_nodes.append(Node(self, k, v, self.nodes[i1], leaf2 = self.nodes[i2]))
 
-                    if (np.isnan(correlations[-1])):
-                        correlations[-1] = 0
+        self.nodes += new_nodes
 
-        #trees += new_trees
-
-        l = sorted(zip(new_trees, correlations), key = lambda x: x[1])
-
-        for i in range(0, len(l)):
-            if (l[i][1] > 0.9):
-                print(l[i][1], l[i][0])
-                trees.append(l[i][0])
-        exit()
+    def compute_outputs(self, a, b):
+        assert(len(a) == len(self.a))
+        assert(len(b) == len(self.b))
         
-        #TODO: Eval new_trees
+        self.a = a
+        self.b = b
+        
+        outputs = []
+        modules = num_modules(self.un_ops, self.bin_ops)
 
-    return un_ops, bin_ops
+        for n in self.nodes:
+            outputs.append(n.evalf(modules))
+
+        return outputs
+
+    def expressions(self):
+        exprs = []
+    
+        for n in self.nodes:
+            exprs.append(n.expr())
+
+        return exprs
+
+    def fit(self, y, loss_func = mse_loss, N = 30, bounds = (-10, 10)):
+        a_s = []
+        b_s = []
+        losses = []
+        exprs = self.expressions()
+        modules = num_modules(self.un_ops, self.bin_ops)
+        maxfev = 1000
+        best_loss = np.inf
+        best_a = None
+        best_b = None
+
+        for i in range(0, len(exprs)):
+            if (not self.nodes[i].considered):
+                continue
+
+            expr = exprs[i]
+
+            for j in range(0, N):
+                a = np.zeros(len(self.a))
+                b = np.zeros(len(self.b))
+                
+                ab_syms = list(expr.free_symbols - set(self.symbols))
+                f = sympy.lambdify(self.symbols + ab_syms, expr, modules = modules)
+                func = model_func(f)
+                
+                params = np.zeros(len(ab_syms))
+                loop = True
+                count = 0
+                
+                while (loop):
+                    params = np.random.uniform(bounds[0], bounds[1], size = len(ab_syms))
+                    r = func(self.X, *params)
+                    count += 1
+                    loop = not np.isfinite(r).all() and count < N
+
+                try:
+                    params, _ = scipy.optimize.curve_fit(func, self.X, y, p0 = params, maxfev = maxfev)
+                except RuntimeError as e:
+                    print(e)
+
+                for i in range(0, len(ab_syms)):
+                    index = int(str(ab_syms[i])[1:])
+
+                    if (str(ab_syms[i])[0] == "a"):
+                        a[index] = params[i]
+                    else:
+                        b[index] = params[i]
+                        
+                l = loss_func(func(self.X, *params), y)
+                
+                if (l < best_loss):
+                    best_loss = l
+                    best_a = a
+                    best_b = b
+
+            a_s.append(best_a)
+            b_s.append(best_b)
+            losses.append(best_loss)
+        
+        losses = np.array(losses)
+        losses = np.nan_to_num(losses, nan = -np.inf, posinf = -np.inf)
+        losses = np.nan_to_num(losses, neginf = np.max(losses))
+        losses = 1 - losses / np.max(losses)
+        
+        la = sorted(zip(losses, a_s), key = lambda x: x[0], reverse = True)
+        lb = sorted(zip(losses, b_s), key = lambda x: x[0], reverse = True)
+
+        self.a = la[0][1]
+        self.b = lb[0][1]
+
+        print(self.a)
+        print(self.b)
+
+        le = sorted(zip(losses, exprs), key = lambda x: x[0], reverse = True)
+
+        m = 0.75 * le[0][0]
+        ln = sorted(zip(losses, self.nodes), key = lambda x: x[0], reverse = True)
+        
+        for x, y in ln:
+            if (x < m):
+                y.considered = False
+
+        un_ops = set()
+        bin_ops = set()
+        best_exprs = []
+        best_nodes = []
+
+        for x in ln[:5]:
+            best_nodes.append(x[1])
+            best_exprs.append(x[1].expr())
+            un_ops |= x[1].un_ops(self.un_ops)
+            bin_ops |= x[1].bin_ops(self.bin_ops)
+
+        return un_ops, bin_ops, best_exprs, best_nodes
 
 def num_modules(unary_ops, binary_ops):
     modules = ['numpy']
@@ -432,8 +558,18 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
     func = model_func(f)
 
     if (len(discrete_values) == 0):
+        value_params = p0
+        loop = True
+        count = 0
+
+        while (loop):
+            value_params = np.random.uniform(-100, 100, size = len(p0))
+            r = func(value_vars, *value_params)
+            count += 1
+            loop = not np.isfinite(r).all() and count < 30
+
         try:
-            value_params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = p0, maxfev = maxfev)
+            value_params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = value_params, maxfev = maxfev)
         except RuntimeError as e:
             print(e)
 
@@ -936,23 +1072,6 @@ def newSymbol():
 
     return sympy.Symbol("_" + str(i))
 
-def mse_loss(x, y):
-    l = np.sum((x - y) ** 2)
-
-    if (np.isnan(l)):
-        return np.inf
-
-    return l
-
-def model_func(func):
-    def model(x, *args):
-        try:
-            return np.array(func(*x, *args), dtype = np.float64)
-        except ZeroDivisionError:
-            return math.nan
-
-    return model
-
 def new_params(expr, symbols):
     e = symplify_sym_expr(expr, symbols)
 
@@ -1230,7 +1349,7 @@ class SR:
                  maxloss = math.inf,
                  maxexpr = -1,
                  discard_previous_expr = False,
-                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False}, #True for strict symmetry
+                 symmetric_binary_operators = {"+": True, "-": True, "*": False, "conv": False, "fmin": True, "fmax": True}, #True for strict symmetry
                  shuffle_indices = False,
                  verbose = False,
                  group_expr_size = -1,
@@ -1253,7 +1372,9 @@ class SR:
                  monothread = False,
                  brute_force_limit = 5e6,
                  auto_ops = False,
-                 csv_filename = None):
+                 csv_filename = None,
+                 auto_ops_depth = (2, 1),
+                 ):
         self.niterations = niterations
         self.unary_operators = unary_operators
         self.binary_operators = binary_operators
@@ -1286,6 +1407,7 @@ class SR:
         self.brute_force_limit = brute_force_limit
         self.auto_ops = auto_ops
         self.csv_filename = csv_filename
+        self.auto_ops_depth = auto_ops_depth
 
         assert(self.eps > 0)
 
@@ -1298,33 +1420,36 @@ class SR:
                 self.unary_operators = {"neg": (sym_neg, operator.neg),
                                         "abs": (sympy.Abs, operator.abs),
                                         "inv_": (sym_inv_, num_inv_),
-                                        "sqrt": (sym_sqrt, np.sqrt),
+                                        #"sqrt": (sym_sqrt, np.sqrt), #not useful because exp and log combination
                                         "cos": (sympy.cos, np.cos),
-                                        "sin": (sympy.sin, np.sin),
+                                        #"sin": (sympy.sin, np.sin), #not useful, same as cos with phase
                                         "tan": (sympy.tan, np.tan),
-                                        "acos": (sympy.acos, np.arccos),
-                                        "asin": (sympy.asin, np.arcsin),
-                                        "atan": (sympy.atan, np.arctan),
+                                        #"acos": (sympy.acos, np.arccos),
+                                        #"asin": (sympy.asin, np.arcsin),
+                                        #"atan": (sympy.atan, np.arctan),
                                         "log": (sympy.log, np.log),
                                         "exp": (sympy.exp, np.exp),
-                                        "sinh": (sympy.sinh, np.sinh),
-                                        "cosh": (sympy.cosh, np.cosh),
-                                        "tanh": (sympy.tanh, np.tanh),
-                                        "asinh": (sympy.asinh, np.arcsinh),
-                                        "acosh": (sympy.acosh, np.arccosh),
-                                        "atanh": (sympy.atanh, np.arctanh),
+                                        #"sinh": (sympy.sinh, np.sinh),
+                                        #"cosh": (sympy.cosh, np.cosh),
+                                        #"tanh": (sympy.tanh, np.tanh),
+                                        #"asinh": (sympy.asinh, np.arcsinh),
+                                        #"acosh": (sympy.acosh, np.arccosh),
+                                        #"atanh": (sympy.atanh, np.arctanh),
                                         "floor": (sym_floor, np.floor),
                                         "ceil": (sym_ceil, np.ceil)}
 
             if (len(self.binary_operators) == 0):
                 self.binary_operators = {"+": (operator.add, operator.add),
-                                         "-": (operator.sub, operator.sub),
+                                         #"-": (operator.sub, operator.sub), #equivalent to "+"
                                          "*": (operator.mul, operator.mul),
                                          "/": (operator.truediv, operator.truediv),
-                                         "//": (operator.floordiv, operator.floordiv),
-                                         "%": (operator.mod, operator.mod),
-                                         "**": (sympy.Pow, operator.pow),
-                                         "conv": (sym_conv, convolve)}
+                                         #"//": (operator.floordiv, operator.floordiv),
+                                         #"%": (operator.mod, operator.mod),
+                                         #"**": (sympy.Pow, operator.pow),
+                                         #"conv": (sym_conv, convolve),
+                                         #"fmin": (sym_fmin, np.fmin),
+                                         #"fmax": (sym_fmax, np.fmax),
+                                         }
 
     def fit(self, X, y, variable_names = []):
         y = np.array(y, dtype = np.float64)
@@ -1351,105 +1476,44 @@ class SR:
 
         unary_operators = copy.deepcopy(self.unary_operators)
         binary_operators = copy.deepcopy(self.binary_operators)
+        extra_start_sym_expr = copy.deepcopy(self.extra_start_sym_expr)
 
         if (self.auto_ops):
-            #un_ops, bin_ops = necessary_ops(X, y, symbols, unary_operators, binary_operators, self.symmetric_binary_operators)
-        
-            X_raw = pd.DataFrame()
+            symnet_un = SymNet(X, symbols, unary_operators, {}, self.symmetric_binary_operators)
             
-            for i in range(0, len(symbols)):
-                X_raw[str(symbols[i])] = X[i]
-
-            feature_dict = {}
-            base_vars = [str(x) for x in symbols]
-            ops = {}
-
-            for k, v in self.unary_operators.items():
-                sym_op, num_op = v
-
-                for var in symbols:
-                    feature_dict[str(sym_op(var))] = num_op(X_raw[str(var)])
-                    ops[str(sym_op(var))] = k
-
-            for k, v in self.binary_operators.items():
-                sym_op, num_op = v
-                
-                indices1 = list(range(0, len(symbols)))
-
-                for i1 in indices1:
-                    indices2 = list(range(0, len(symbols)))
-
-                    if (k in list(self.symmetric_binary_operators.keys())):
-                        indices2 = list(range(i1 + 1 if v else i1, len(symbols)))
-                                    
-                    for i2 in indices2:
-                        feature_dict[str(sym_op(symbols[i1], symbols[i2]))] = num_op(X_raw[str(symbols[i1])], X_raw[str(symbols[i2])])
-                        ops[str(sym_op(symbols[i1], symbols[i2]))] = k
-
-            X_feat = pd.DataFrame(feature_dict)
+            for i in range(0, self.auto_ops_depth[0]):
+                symnet_un.add_layer()
+                un_ops_un, bin_ops_un, best_exprs_un, best_nodes_un = symnet_un.fit(y)
             
-            X_feat = X_feat.replace([np.inf, -np.inf, np.nan], 0)
-            X_feat = X_feat.loc[:, (X_feat.abs().max() < 1e6)]
+            if (self.verbose):
+                print("Auto unary operators", best_exprs_un, un_ops_un)
+
+            symnet_bin = SymNet(X, symbols, {}, binary_operators, self.symmetric_binary_operators)
+
+            for i in range(0, self.auto_ops_depth[1]):
+                symnet_bin.nodes = best_nodes_un
+                symnet_bin.add_layer()
+
+            un_ops_bin, bin_ops_bin, best_exprs_bin, best_nodes_bin = symnet_bin.fit(y)
             
-            from sklearn.ensemble import RandomForestRegressor
-            from sklearn.model_selection import train_test_split
-
-            X_train, X_test, y_train, y_test = train_test_split(X_feat, y, test_size = 0.2, random_state = 0)
-
-            model = RandomForestRegressor(n_estimators = 200, random_state = 0)
-            model.fit(X_train, y_train)
-
-            importances = model.feature_importances_
-            features_sorted = sorted(zip(X_feat.columns, importances), key = lambda x: x[1], reverse = True)
-
-            imp = 0
-
-            for i in range(0, len(features_sorted)):
-                features_sorted[i] = list(features_sorted[i])
-                x = features_sorted[i]
-                imp_ = x[1]
-                x.append(abs(x[1] - imp))
-                imp = imp_
-
-            min_score = 0.015
-            min_r = 0.05
-            un_ops = set()
-            bin_ops = set()
-
-            for name, score, r in features_sorted:
-                #if (score > min_score):
-                if (r > min_r):
-                    if (ops[name] in list(self.unary_operators.keys())):
-                        un_ops.add(ops[name])
-                    elif (ops[name] in list(self.binary_operators.keys())):
-                        bin_ops.add(ops[name])  
-
-            if ("sinh" in un_ops or "cosh" in un_ops or "exp" in un_ops):
-                un_ops.add("exp")
-                un_ops.add("sinh")
-                un_ops.add("cosh")
-
-            if ("sin" in un_ops or "cos" in un_ops):
-                un_ops.add("sin")
-                un_ops.add("cos")
+            if (self.verbose):
+                print("Auto binary operators", best_exprs_bin, bin_ops_bin)
 
             keys = []
             for k, v in unary_operators.items():
-                if (not k in un_ops):
+                if (not k in un_ops_un):
                     keys.append(k)
             for k in keys:
                 del unary_operators[k]
 
             keys = []
             for k, v in binary_operators.items():
-                if (not k in bin_ops):
+                if (not k in bin_ops_bin):
                     keys.append(k)
             for k in keys:
                 del binary_operators[k]
-                                    
-            if (self.verbose):
-                print("Considered unary operators:", un_ops)
-                print("Considered binary operators:", bin_ops)
+
+            extra_start_sym_expr += best_exprs_bin
 
         exprs = []
         opt_exprs = {}
@@ -1464,7 +1528,7 @@ class SR:
             if (self.callback):
                 self.callback(exprs[-1], y)
 
-        for ee in self.extra_start_sym_expr:
+        for ee in extra_start_sym_expr:
             exprs.append(Expr(expr = ee, symbol_vars = symbols, value_vars = X))
             exprs[-1].compute_opt_expr(y, self.elementwise_loss, self.subs_expr, self.eps, unary_operators,
                                        binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
@@ -1811,3 +1875,9 @@ def sym_ceil(x):
 
 def sym_sqrt(x):
     return sympy.sympify("sqrt(" + str(x) + ")")
+
+def sym_fmin(x, y):
+    return sympy.sympify("fmin(" + str(x) + ", " + str(y) + ")")
+
+def sym_fmax(x, y):
+    return sympy.sympify("fmax(" + str(x) + ", " + str(y) + ")")

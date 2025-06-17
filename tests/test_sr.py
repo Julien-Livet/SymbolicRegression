@@ -131,6 +131,22 @@ def test_sym_expr_eq_16():
 
     assert(sr.sym_expr_eq(expr1, expr2, sympy.symbols("x y")))
 
+def test_coslog():
+    model = sr.SR(niterations = 2,
+                  auto_ops = True,
+                  discrete_param_values = ["(0, 7)"],
+                  foundBreak = True)
+
+    n = 1000
+    x1 = np.random.uniform(1, 10, size = n)
+    y = 2 * np.cos(3 * np.log(4 * x1 + 5) + 6) + 7
+    X = [x1]
+
+    model.fit(X, y, ["x1"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("2 * cos(3 * log(4 * x1 + 5) + 6) + 7")))
+
 def test_5x1_add_7x2_add_x3_add_8():
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add)},

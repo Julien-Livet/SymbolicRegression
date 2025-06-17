@@ -5,7 +5,7 @@ The algorithm will consider first the linear combinations ```a*x1+b``` and ```c*
 Set ```verbose``` to True to get some information during regression.
 During process, we can check some expressions with ```checked_sym_expr```.
 It is possible to specify the cost function to optimize with ```elementwise_loss```.
-```auto_ops``` is used to select best operators among available operators.
+```auto_ops``` is used to select best operators among available operators, ```auto_ops_depth``` is a 2-tuple with depth for unary and binary operators.
 Then the first iteration starts:
 - We apply the unary operators defined with ```unary_operators```, for example ```e*log(a*x1+b)+f``` and ```g*log(c*x2+d)+h```.
 - We apply then the binary operators defined with ```binary_operators```, for example ```i*(a*x1+b+c*x2+d)+j``` same as ```k*x1+l*x2+m```, etc. We can skip some combinations according to symmetric binary operators defined with ```symmetric_binary_operators```.
