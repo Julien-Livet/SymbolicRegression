@@ -134,7 +134,7 @@ def test_sym_expr_eq_16():
 def test_coslog():
     model = sr.SR(niterations = 2,
                   auto_ops = True,
-                  discrete_param_values = ["(0, 7)"],
+                  discrete_param_values = ["(2, 7)"],
                   foundBreak = True)
 
     n = 1000
