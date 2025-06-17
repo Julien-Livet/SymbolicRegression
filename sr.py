@@ -68,15 +68,15 @@ class Node:
         
         return bin_ops
     
-    def evalf(self, modules):
+    def evalf(self):
         leaf1 = copy.deepcopy(self.leaf1)
         x = 0
         
         if (isinstance(leaf1, sympy.Symbol)):
-            f = sympy.lambdify(self.sym_x1, leaf1, modules = modules)
+            f = sympy.lambdify(self.sym_x1, leaf1, modules = self.symnet.modules)
             x = f(self.num_x1)
         else:
-            x = leaf1.evalf(modules)
+            x = leaf1.evalf()
 
         leaf2 = copy.deepcopy(self.leaf2)
 
@@ -89,10 +89,10 @@ class Node:
         y = 0
         
         if (isinstance(leaf2, sympy.Symbol)):
-            f = sympy.lambdify(self.sym_x2, leaf2, modules = modules)
+            f = sympy.lambdify(self.sym_x2, leaf2, modules = self.symnet.modules)
             y = f(self.num_x2)
         else:
-            y = leaf2.evalf(modules)
+            y = leaf2.evalf()
         
         return self.symnet.a[self.index] * self.op[1](x, y) + self.symnet.b[self.index]
     
@@ -110,7 +110,8 @@ class Node:
         return sympy.sympify(a + "*(" + str(self.op[0](self.leaf1.expr(), self.leaf2.expr())) + ")+" + b)
 
 class SymNet:
-    def __init__(self, X, symbols, un_ops, bin_ops, symm_bin_ops):
+    def __init__(self, modules, X, symbols, un_ops, bin_ops, symm_bin_ops):
+        self.modules = modules
         self.X = X
         self.symbols = symbols
         self.un_ops = un_ops
@@ -174,10 +175,9 @@ class SymNet:
         self.b = b
         
         outputs = []
-        modules = num_modules(self.un_ops, self.bin_ops)
 
         for n in self.nodes:
-            outputs.append(n.evalf(modules))
+            outputs.append(n.evalf())
 
         return outputs
 
@@ -194,7 +194,6 @@ class SymNet:
         b_s = []
         losses = []
         exprs = self.expressions()
-        modules = num_modules(self.un_ops, self.bin_ops)
         maxfev = 1000
         best_loss = np.inf
         best_a = None
@@ -211,7 +210,7 @@ class SymNet:
                 b = np.zeros(len(self.b))
                 
                 ab_syms = list(expr.free_symbols - set(self.symbols))
-                f = sympy.lambdify(self.symbols + ab_syms, expr, modules = modules)
+                f = sympy.lambdify(self.symbols + ab_syms, expr, modules = self.modules)
                 func = model_func(f)
                 
                 params = np.zeros(len(ab_syms))
@@ -770,7 +769,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
     best_loss = np.inf
     value_params = p0
 
-    for j in range(0, maxfev):
+    for j in range(0, 30):
         params = np.zeros(len(p0))
         loop = True
         count = 0
@@ -1510,7 +1509,9 @@ class SR:
         extra_start_sym_expr = copy.deepcopy(self.extra_start_sym_expr)
 
         if (self.auto_ops):
-            symnet_un = SymNet(X, symbols, unary_operators, {}, self.symmetric_binary_operators)
+            modules = num_modules(unary_operators, binary_operators)
+
+            symnet_un = SymNet(modules, X, symbols, unary_operators, {}, self.symmetric_binary_operators)
             
             for i in range(0, self.auto_ops_depth[0]):
                 symnet_un.add_layer()
@@ -1519,7 +1520,7 @@ class SR:
             if (self.verbose):
                 print("Auto unary operators", best_exprs_un, un_ops_un)
 
-            symnet_bin = SymNet(X, symbols, {}, binary_operators, self.symmetric_binary_operators)
+            symnet_bin = SymNet(modules, X, symbols, {}, binary_operators, self.symmetric_binary_operators)
 
             for i in range(0, self.auto_ops_depth[1]):
                 symnet_bin.nodes = best_nodes_un
