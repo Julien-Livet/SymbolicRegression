@@ -41,37 +41,37 @@ class Node:
         self.sym_x2 = sym_x2
         self.num_x2 = num_x2
         self.considered = True
-        
+
     def un_ops(self, unary_ops):
         un_ops = set()
-        
+
         if (self.name in unary_ops):
             un_ops.add(self.name)
-        
+
         if (type(self.leaf1) is Node):
             un_ops |= self.leaf1.un_ops(unary_ops)
         if (type(self.leaf2) is Node):
             un_ops |= self.leaf2.un_ops(unary_ops)
-        
+
         return un_ops
-    
+
     def bin_ops(self, binary_ops):
         bin_ops = set()
-        
+
         if (self.name in binary_ops):
             bin_ops.add(self.name)
-        
+
         if (type(self.leaf1) is Node):
             bin_ops |= self.leaf1.bin_ops(binary_ops)
         if (type(self.leaf2) is Node):
             bin_ops |= self.leaf2.bin_ops(binary_ops)
-        
+
         return bin_ops
-    
+
     def evalf(self):
         leaf1 = copy.deepcopy(self.leaf1)
         x = 0
-        
+
         if (isinstance(leaf1, sympy.Symbol)):
             f = sympy.lambdify(self.sym_x1, leaf1, modules = self.symnet.modules)
             x = f(self.num_x1)
@@ -85,28 +85,28 @@ class Node:
                 return self.symnet.a[self.index] * self.op[1](x) + self.symnet.b[self.index]
             else:
                 return x
-        
+
         y = 0
-        
+
         if (isinstance(leaf2, sympy.Symbol)):
             f = sympy.lambdify(self.sym_x2, leaf2, modules = self.symnet.modules)
             y = f(self.num_x2)
         else:
             y = leaf2.evalf()
-        
+
         return self.symnet.a[self.index] * self.op[1](x, y) + self.symnet.b[self.index]
-    
+
     def expr(self):
         a = "a" + str(self.index)
         b = "b" + str(self.index)
-    
+
         if (isinstance(self.leaf1, sympy.Symbol)):
             return sympy.sympify(a + "*" + str(self.leaf1) + "+" + b)
-            
+
         if (self.leaf2 == None):
             if (self.op):
                 return sympy.sympify(a + "*(" + str(self.op[0](self.leaf1.expr())) + ")+" + b)
-                
+
         return sympy.sympify(a + "*(" + str(self.op[0](self.leaf1.expr(), self.leaf2.expr())) + ")+" + b)
 
 class SymNet:
@@ -122,21 +122,21 @@ class SymNet:
         self.a = []
         self.b = []
         self.nodes = []
-        
+
         assert(len(X) == len(symbols))
-        
+
         for i in range(0, len(X)):
             self.nodes.append(Node(self, "", None, symbols[i], symbols[i], X[i]))
 
     def add_param(self):
         self.a = np.array(list(self.a) + [0])
         self.b = np.array(list(self.b) + [0])
-        
+
         return len(self.a) - 1
 
-    def add_layer(self):    
+    def add_layer(self):
         new_nodes = []
-    
+
         for k, v in self.un_ops.items():
             for n in self.nodes[self.un_ops_index:]:
                 if (n.considered):
@@ -144,9 +144,9 @@ class SymNet:
 
         self.un_ops_index = len(self.nodes)
         self.nodes += new_nodes
-        
+
         new_nodes = []
-    
+
         for k, v in self.bin_ops.items():
             indices1 = list(range(0, len(self.nodes)))
 
@@ -157,11 +157,11 @@ class SymNet:
                     if (k == key):
                         indices2 = list(range(i1 + 1 if value else i1, len(self.nodes)))
                         break
-                                
+
                 for i2 in indices2:
                     if (not (i1, i2) in self.bin_ops_comb[k]):
                         self.bin_ops_comb[k].append((i1, i2))
-                        
+
                         if (self.nodes[i1].considered and self.nodes[i2].considered):
                             new_nodes.append(Node(self, k, v, self.nodes[i1], leaf2 = self.nodes[i2]))
 
@@ -170,10 +170,10 @@ class SymNet:
     def compute_outputs(self, a, b):
         assert(len(a) == len(self.a))
         assert(len(b) == len(self.b))
-        
+
         self.a = a
         self.b = b
-        
+
         outputs = []
 
         for n in self.nodes:
@@ -183,7 +183,7 @@ class SymNet:
 
     def expressions(self):
         exprs = []
-    
+
         for n in self.nodes:
             exprs.append(n.expr())
 
@@ -208,15 +208,15 @@ class SymNet:
             for j in range(0, N):
                 a = np.zeros(len(self.a))
                 b = np.zeros(len(self.b))
-                
+
                 ab_syms = list(expr.free_symbols - set(self.symbols))
                 f = sympy.lambdify(self.symbols + ab_syms, expr, modules = self.modules)
                 func = model_func(f)
-                
+
                 params = np.zeros(len(ab_syms))
                 loop = True
                 count = 0
-                
+
                 while (loop):
                     params = np.random.uniform(bounds[0], bounds[1], size = len(ab_syms))
                     r = func(self.X, *params)
@@ -235,9 +235,9 @@ class SymNet:
                         a[index] = params[i]
                     else:
                         b[index] = params[i]
-                        
+
                 l = loss_func(func(self.X, *params), y)
-                
+
                 if (l < best_loss):
                     best_loss = l
                     best_a = a
@@ -246,12 +246,12 @@ class SymNet:
             a_s.append(best_a)
             b_s.append(best_b)
             losses.append(best_loss)
-        
+
         losses = np.array(losses)
         losses = np.nan_to_num(losses, nan = -np.inf, posinf = -np.inf)
         losses = np.nan_to_num(losses, neginf = np.max(losses))
         losses = 1 - losses / np.max(losses)
-        
+
         la = sorted(zip(losses, a_s), key = lambda x: x[0], reverse = True)
         lb = sorted(zip(losses, b_s), key = lambda x: x[0], reverse = True)
 
@@ -262,7 +262,7 @@ class SymNet:
 
         m = 0.75 * le[0][0]
         ln = sorted(zip(losses, self.nodes), key = lambda x: x[0], reverse = True)
-        
+
         for x, y in ln:
             if (x < m):
                 y.considered = False
@@ -345,10 +345,10 @@ def expression_complexity(expr, weights = None):
 
 def all_delta_discrete_values(discrete_values):
     all_values = all_values_discrete_values(discrete_values)
-    
+
     all_delta = {}
     n = len(all_values)
-    
+
     for i in range(n):
         for j in range(n):
             diff = all_values[i] - all_values[j]
@@ -429,8 +429,8 @@ def random_discrete_values(n, discrete_values):
 
         if (type(value) == str):
             s = value
-            values = [float(x) for x in s[1:-1].split(",")]
-            a, b = values[0], values[1]
+            vv = [float(x) for x in s[1:-1].split(",")]
+            a, b = vv[0], vv[1]
 
             assert(a <= b)
 
@@ -438,8 +438,8 @@ def random_discrete_values(n, discrete_values):
                 a, b = int(a), int(b)
                 c = 1
 
-                if (len(values) > 2):
-                    c = int(values[2])
+                if (len(vv) > 2):
+                    c = int(vv[2])
 
                 if (s[0] == ")"):
                     a += 1
@@ -452,8 +452,8 @@ def random_discrete_values(n, discrete_values):
             elif (s[0] == "[" or s[0] == "]"):
                 c = 10
 
-                if (len(values) > 2):
-                    c = int(values[2])
+                if (len(vv) > 2):
+                    c = int(vv[2])
                     value = random.choice(np.linspace(a, b, c))
                 else:
                     value = (b - a) * random.random() + a
@@ -585,11 +585,11 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
         for params in grid:
             l = loss_func(func(value_vars, *params), y)
-            
+
             if (l < best_loss):
                 best_loss = l
                 value_params = params
-                
+
                 if (best_loss < epsloss):
                     break
 
@@ -655,7 +655,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
                 removed_sym.add(sp_wo_csts[i])
                 del params_value[i]
                 del sp_wo_csts[i]
-                
+
         se_w_csts = sym_expr.subs(dict(zip(removed_sym, [0] * len(removed_sym))))
 
         for i in reversed(range(0, len(symbol_params))):
@@ -709,7 +709,7 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
                     removed_sym.add(sp_w_csts[i])
                     del params_value[i]
                     del sp_w_csts[i]
-                    
+
             for i in range(0, len(symbol_params)):
                 if (not symbol_params[i] in se_w_csts.free_symbols):
                     removed_sym.add(symbol_params[i])
@@ -763,40 +763,43 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
     f = sympy.lambdify(symbol_vars + symbol_params, sym_expr, modules = modules)
     func = model_func(f)
+    possible_params = [value_params]
 
     #Fall back to curve_fit method
 
     best_loss = np.inf
-    value_params = p0
+    params = None
 
     for j in range(0, 30):
-        params = np.zeros(len(p0))
-        loop = True
-        count = 0
-        
-        while (loop):
-            params = np.random.uniform(min_, max_, size = len(p0))
-            params = round_discrete_values(params, discrete_values)
-            r = func(value_vars, *params)
-            count += 1
-            loop = not np.isfinite(r).all() and count < 30
+        if (params is None):
+            params = value_params
+        else:
+            loop = True
+            count = 0
+
+            while (loop):
+                params = random_discrete_values(len(p0), discrete_values)
+                r = func(value_vars, *params)
+                count += 1
+                loop = not np.isfinite(r).all() and count < 30
 
         try:
             params, _ = scipy.optimize.curve_fit(func, value_vars, y, p0 = params, maxfev = maxfev)
             params = round_discrete_values(params, discrete_values)
         except RuntimeError as e:
             print(e)
-    
+
         l = loss_func(func(value_vars, *params), y)
-        
+
         if (l < best_loss):
             best_loss = l
             value_params = params
-            
-            if (l < epsloss):
-                break
+            possible_params.append(value_params)
 
-    return value_params
+            if (l < epsloss):
+                return value_params
+
+    #return value_params
 
     #Fall back to genetic algorithm
 
@@ -808,12 +811,12 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
 
     def int_random_param():
         return [random.randint(l, u) for l, u in zip([min_] * len(p0), [max_] * len(p0))]
-        
+
     def float_random_param():
         return [random.uniform(l, u) for l, u in zip([min_] * len(p0), [max_] * len(p0))]
 
     toolbox = base.Toolbox()
-    
+
     if (type_ == int):
         toolbox.register("individual", tools.initIterate, creator.Individual, int_random_param)
         toolbox.register("mutate", tools.mutUniformInt, low = [min_] * len(p0), up = [max_] * len(p0), indpb = 0.2)
@@ -827,7 +830,9 @@ def fit(sym_expr, symbol_vars, symbol_params, modules, value_vars, y, p0, loss_f
     toolbox.register("select", tools.selTournament, tournsize = 3)
 
     pop = toolbox.population(n = maxfev)
-    pop.append(creator.Individual(value_params))
+
+    for v in possible_params:
+        pop.append(creator.Individual(v))
 
     pop, bests = eaSimpleWithElitism(pop, toolbox, cxpb = 0.5, mutpb = 0.2, ngen = 100)
 
@@ -1111,9 +1116,13 @@ def new_params(expr, symbols):
     return (new_symbol_params, new_value_params, e)
 
 class Expr:
+    id_count = 0
+
     def __init__(self, symbol_var = None, value_var = None, expr = None, symbol_vars = None, value_vars = None):
         self.op_tree = []
-            
+        self.id = Expr.id_count
+        Expr.id_count += 1
+
         if (expr and symbol_vars and value_vars):
             self.symbol_vars = []
             self.value_vars = []
@@ -1228,6 +1237,8 @@ class Expr:
 
     def apply_unary_op(self, unary_sym_num_op):
         expr = copy.deepcopy(self)
+        expr.id = Expr.id_count
+        Expr.id_count += 1
         sym_op, num_op = unary_sym_num_op
 
         a = newSymbol()
@@ -1254,6 +1265,8 @@ class Expr:
         s2 = copy.deepcopy(other_expr.symbol_params)
 
         expr = copy.deepcopy(self)
+        expr.id = Expr.id_count
+        Expr.id_count += 1
         sym_op, num_op = binary_sym_num_op
 
         symbol_params = []
@@ -1298,7 +1311,7 @@ class Expr:
 
         assert(len(expr.symbol_params) == len(expr.value_params))
         assert(len(expr.symbol_params) == len(set(expr.symbol_params)))
-        
+
         expr.op_tree += other_expr.op_tree
         expr.op_tree.append(sym_op)
 
@@ -1339,7 +1352,7 @@ def eval_binary_combination(args):
 
     depth1 = expr1.op_tree.count(binary_operator[0])
     depth2 = expr2.op_tree.count(binary_operator[0])
-    
+
     if (depth1 >= operator_depth.get(name, math.inf)
         or depth2 >= operator_depth.get(name, math.inf)):
         return None
@@ -1481,9 +1494,12 @@ class SR:
                                          #"fmax": (sym_fmax, np.fmax),
                                          }
 
+        self.un_comb = dict(zip(list(self.unary_operators.keys()), [[] for x in self.unary_operators.keys()]))
+        self.bin_comb = dict(zip(list(self.binary_operators.keys()), [[] for x in self.binary_operators.keys()]))
+
     def fit(self, X, y, variable_names = []):
         y = np.array(y, dtype = np.float64)
-        
+
         self.lastIteration = -1
         self.expressions = []
 
@@ -1512,11 +1528,11 @@ class SR:
             modules = num_modules(unary_operators, binary_operators)
 
             symnet_un = SymNet(modules, X, symbols, unary_operators, {}, self.symmetric_binary_operators)
-            
+
             for i in range(0, self.auto_ops_depth[0]):
                 symnet_un.add_layer()
                 un_ops_un, bin_ops_un, best_exprs_un, best_nodes_un = symnet_un.fit(y, self.elementwise_loss)
-            
+
             if (self.verbose):
                 print("Auto unary operators", best_exprs_un, un_ops_un)
 
@@ -1527,7 +1543,7 @@ class SR:
                 symnet_bin.add_layer()
 
             un_ops_bin, bin_ops_bin, best_exprs_bin, best_nodes_bin = symnet_bin.fit(y, self.elementwise_loss)
-            
+
             if (self.verbose):
                 print("Auto binary operators", best_exprs_bin, bin_ops_bin)
 
@@ -1598,14 +1614,14 @@ class SR:
                 df_loss = []
                 df_sym_complexity = []
                 df_opt_complexity = []
-                
+
                 for e in self.expressions:
                     df_sym_expr.append(e.sym_expr)
                     df_opt_expr.append(e.opt_expr)
                     df_loss.append(e.loss)
                     df_sym_complexity.append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
                     df_opt_complexity.append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
-                    
+
                 df["sym_expr"] = df_sym_expr
                 df["opt_expr"] = df_opt_expr
                 df["loss"] = df_loss
@@ -1650,6 +1666,11 @@ class SR:
             exprs_to_process = sorted(exprs_to_process, key = lambda x: expression_complexity(x[0].sym_expr, self.op_weights)["total_weight"])
 
             for expr in exprs_to_process:
+                if (expr[0].id in self.un_comb[name]):
+                    continue
+
+                self.un_comb[name].append(expr[0].id)
+
                 depth = expr[0].op_tree.count(expr[1][0])
 
                 if (depth < self.operator_depth.get(expr[2], math.inf)):
@@ -1737,6 +1758,11 @@ class SR:
                                 random.shuffle(indices2)
 
                             for i2 in indices2:
+                                if ((group[i1].id, group[i2].id) in self.bin_comb[name]):
+                                    continue
+
+                                self.bin_comb[name].append((group[i1].id, group[i2].id))
+
                                 newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                                 self.elementwise_loss, self.maxloss, self.verbose,
                                                 self.eps, self.epsloss, self.avoided_expr, self.foundBreak, self.subs_expr,
@@ -1763,29 +1789,29 @@ class SR:
                 if (self.monothread):
                     if (self.verbose):
                         print("Monothread process")
-                    
+
                     for t in tasks:
                         results.append(eval_binary_combination(t))
                 else:
                     import _pickle
-                
+
                     try:
                         if (self.verbose):
                             print("multiprocessing process")
-                        
+
                         with multiprocessing.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
                             results = pool.map(eval_binary_combination, tasks)
                     except (_pickle.PicklingError, RuntimeError, AttributeError) as e:
                         try:
                             if (self.verbose):
                                 print("multiprocessing.dummy process")
-                            
+
                             with multiprocessing.dummy.Pool(initializer = init_shared, initargs = (shared_value,), processes = multiprocessing.cpu_count()) as pool:
-                                results = pool.map(eval_binary_combination, tasks) 
+                                results = pool.map(eval_binary_combination, tasks)
                         except BrokenPipeError:
                             if (self.verbose):
                                 print("Monothread process")
-                            
+
                             for t in tasks:
                                 results.append(eval_binary_combination(t))
 
@@ -1803,7 +1829,7 @@ class SR:
 
             if (self.verbose):
                 print("Best expression", min(opt_exprs, key = opt_exprs.get), min(opt_exprs.values()))
-        
+
                 for k1 in range(0, len(self.checked_sym_expr)):
                     ce = self.checked_sym_expr[k1]
 
@@ -1833,7 +1859,7 @@ class SR:
 
             if (finished):
                 break
-                
+
         self.expressions = exprs
 
         losses = [value for key, value in opt_exprs.items()]
@@ -1873,13 +1899,13 @@ class SR:
                 df_loss.append(e.loss)
                 df_sym_complexity.append(expression_complexity(e.sym_expr, self.op_weights)["total_weight"])
                 df_opt_complexity.append(expression_complexity(e.opt_expr, self.op_weights)["total_weight"])
-                
+
             df["sym_expr"] = df_sym_expr
             df["opt_expr"] = df_opt_expr
             df["loss"] = df_loss
             df["sym_complexity"] = df_sym_complexity
             df["opt_complexity"] = df_opt_complexity
-            
+
             df = df.sort_values(by = "loss")
 
             df.to_csv(self.csv_filename)
