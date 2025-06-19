@@ -1650,6 +1650,11 @@ class SR:
 
             for name, unary_operator in unary_operators.items():
                 for expr in exprs:
+                    if (expr.id in un_comb[name]):
+                        continue
+
+                    un_comb[name].append(expr.id)
+
                     process = True
 
                     if (self.process_sym_expr != None):
@@ -1666,11 +1671,6 @@ class SR:
             exprs_to_process = sorted(exprs_to_process, key = lambda x: expression_complexity(x[0].sym_expr, self.op_weights)["total_weight"])
 
             for expr in exprs_to_process:
-                if (expr[0].id in un_comb[name]):
-                    continue
-
-                un_comb[name].append(expr[0].id)
-
                 depth = expr[0].op_tree.count(expr[1][0])
 
                 if (depth < self.operator_depth.get(expr[2], math.inf)):

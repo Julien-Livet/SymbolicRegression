@@ -261,6 +261,7 @@ def test_pysr():
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
                   operator_depth = {"cos": 1},
+                  discrete_param_values = [0, 1, -0.5, 2.5382],
                   foundBreak = True,
                   eps = 1e-6)
 
