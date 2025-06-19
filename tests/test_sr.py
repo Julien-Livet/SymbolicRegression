@@ -198,8 +198,9 @@ def test_x1_add_x2():
 """
 def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model = sr.SR(niterations = 3,
-                  binary_operators = {"*": (operator.mul, operator.mul)},
-                  discrete_param_values = ["(-2, 2)"],
+                  binary_operators = {"*": (operator.mul, operator.mul),
+                                      "+": (operator.add, operator.add)},
+                  discrete_param_values = ["(-1, 1)"],
                   foundBreak = True)
 
     n = 10
