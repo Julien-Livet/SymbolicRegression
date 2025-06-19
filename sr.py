@@ -1494,9 +1494,6 @@ class SR:
                                          #"fmax": (sym_fmax, np.fmax),
                                          }
 
-        self.un_comb = dict(zip(list(self.unary_operators.keys()), [[] for x in self.unary_operators.keys()]))
-        self.bin_comb = dict(zip(list(self.binary_operators.keys()), [[] for x in self.binary_operators.keys()]))
-
     def fit(self, X, y, variable_names = []):
         y = np.array(y, dtype = np.float64)
 
@@ -1562,6 +1559,9 @@ class SR:
                 del binary_operators[k]
 
             extra_start_sym_expr += best_exprs_bin
+
+        un_comb = dict(zip(list(unary_operators.keys()), [[] for x in unary_operators.keys()]))
+        bin_comb = dict(zip(list(binary_operators.keys()), [[] for x in binary_operators.keys()]))
 
         exprs = []
         opt_exprs = {}
@@ -1666,10 +1666,10 @@ class SR:
             exprs_to_process = sorted(exprs_to_process, key = lambda x: expression_complexity(x[0].sym_expr, self.op_weights)["total_weight"])
 
             for expr in exprs_to_process:
-                if (expr[0].id in self.un_comb[name]):
+                if (expr[0].id in un_comb[name]):
                     continue
 
-                self.un_comb[name].append(expr[0].id)
+                un_comb[name].append(expr[0].id)
 
                 depth = expr[0].op_tree.count(expr[1][0])
 
@@ -1758,10 +1758,10 @@ class SR:
                                 random.shuffle(indices2)
 
                             for i2 in indices2:
-                                if ((group[i1].id, group[i2].id) in self.bin_comb[name]):
+                                if ((group[i1].id, group[i2].id) in bin_comb[name]):
                                     continue
 
-                                self.bin_comb[name].append((group[i1].id, group[i2].id))
+                                bin_comb[name].append((group[i1].id, group[i2].id))
 
                                 newTasks.append((group[i1], group[i2], name, opt_exprs, binary_operator, y,
                                                 self.elementwise_loss, self.maxloss, self.verbose,
