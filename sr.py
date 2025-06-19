@@ -10,6 +10,7 @@ import pandas as pd
 import random
 import scipy.optimize
 import sympy
+import threading
 
 def mse_loss(x, y):
     l = np.sum((x - y) ** 2)
@@ -1116,12 +1117,15 @@ def new_params(expr, symbols):
     return (new_symbol_params, new_value_params, e)
 
 class Expr:
-    id_count = 0
+    id_count = multiprocessing.Value('i', 0)
+    _lock = threading.Lock()
 
     def __init__(self, symbol_var = None, value_var = None, expr = None, symbol_vars = None, value_vars = None):
         self.op_tree = []
-        self.id = Expr.id_count
-        Expr.id_count += 1
+
+        with Expr._lock:
+            self.id = Expr.id_count.value
+            Expr.id_count.value += 1
 
         if (expr and symbol_vars and value_vars):
             self.symbol_vars = []
@@ -1237,8 +1241,11 @@ class Expr:
 
     def apply_unary_op(self, unary_sym_num_op):
         expr = copy.deepcopy(self)
-        expr.id = Expr.id_count
-        Expr.id_count += 1
+
+        with Expr._lock:
+            expr.id = Expr.id_count.value
+            Expr.id_count.value += 1
+        
         sym_op, num_op = unary_sym_num_op
 
         a = newSymbol()
@@ -1265,8 +1272,11 @@ class Expr:
         s2 = copy.deepcopy(other_expr.symbol_params)
 
         expr = copy.deepcopy(self)
-        expr.id = Expr.id_count
-        Expr.id_count += 1
+
+        with Expr._lock:
+            expr.id = Expr.id_count.value
+            Expr.id_count.value += 1
+
         sym_op, num_op = binary_sym_num_op
 
         symbol_params = []
@@ -1758,6 +1768,7 @@ class SR:
                                 random.shuffle(indices2)
 
                             for i2 in indices2:
+
                                 if ((group[i1].id, group[i2].id) in bin_comb[name]):
                                     continue
 
