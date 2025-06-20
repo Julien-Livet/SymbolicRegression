@@ -223,7 +223,7 @@ def test_d_glider1():
                   unary_operators = {"sin": (sympy.sin, np.sin)},
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
-                  #discrete_param_values = ["(-1, 1)", -0.05, 0.05],
+                  discrete_param_values = ["(-1, 1)", -0.05],
                   operator_depth = {"sin": 1, "*": 2, "+": 2},
                   #callback = callback,
                   #monothread = True,
