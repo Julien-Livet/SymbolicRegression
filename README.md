@@ -24,5 +24,5 @@ It is possible to export results to CSV file with ```csv_filename```.
 
 For more information, see existing tests.
 ```pytest -v```
-If pytest-xdist is installed:
-```pytest -v -n auto```
+If ```pytest-xdist``` and ```pytest-timeout``` is installed:
+```pytest -v -n auto --timeout 600```

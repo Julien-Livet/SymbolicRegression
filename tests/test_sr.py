@@ -195,12 +195,11 @@ def test_x1_add_x2():
 
     assert(len(model.bestExpressions) == 1)
     assert(model.bestExpressions[0][0] == sympy.sympify("x1+x2"))
-"""
+
 def test_x1_2_add_x2_2_sub_x1_mul_x2():
     model = sr.SR(niterations = 3,
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
-                  discrete_param_values = ["(-1, 1)"],
                   foundBreak = True)
 
     n = 10
@@ -213,7 +212,7 @@ def test_x1_2_add_x2_2_sub_x1_mul_x2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.sympify("(x1-x2)**2+x1*x2"))))
-"""
+
 def test_a_mul_x1_add_b():
     model = sr.SR(niterations = 3,
                   binary_operators = {"+": (operator.add, operator.add)},
@@ -261,7 +260,7 @@ def test_pysr():
                   binary_operators = {"+": (operator.add, operator.add),
                                       "*": (operator.mul, operator.mul)},
                   operator_depth = {"cos": 1},
-                  discrete_param_values = [0, 1, -0.5, 2.5382],
+                  #discrete_param_values = [0, 1, -0.5, 2.5382],
                   foundBreak = True,
                   eps = 1e-6)
 
@@ -384,7 +383,7 @@ def test_plane():
     model.fit([x, y, z], np.zeros(len(x)), ["x", "y", "z"])
 
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * x + b * y + c * z + d"), sympy.symbols("x y z")))
-"""
+
 def test_sphere():
     p0 = 10 * np.random.rand(3) - 5 * np.ones(3)
     p0 = np.array([1., 2., 3.])
@@ -418,7 +417,7 @@ def test_sphere():
 
     assert(len(model.bestExpressions) >= 1)
     assert(sr.sym_expr_eq(model.bestExpressions[0][0], sympy.sympify("a * ((x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 - R ** 2)"), sympy.symbols("x y z")))
-"""
+
 def test_gplearn():
     from sklearn.utils.random import check_random_state
 
@@ -499,7 +498,6 @@ def test_3():
                   foundBreak = True,
                   #verbose = True,
                   )
-    #Ajouter du code pour ordonner les tâches des moins complexes aux plus complexes
 
     n = 100
     xmin = -5

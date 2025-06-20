@@ -284,6 +284,7 @@ def test_d_lv1():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
                   operator_depth = {"*": 3, "+": 3},
+                  discrete_param_values = ["(-3, 3)"],
                   #callback = callback,
                   #monothread = True,
                   foundBreak = True)
@@ -312,6 +313,7 @@ def test_d_lv2():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
                   operator_depth = {"*": 3, "+": 3},
+                  discrete_param_values = ["(-2, 2)"],
                   #callback = callback,
                   #monothread = True,
                   foundBreak = True)
