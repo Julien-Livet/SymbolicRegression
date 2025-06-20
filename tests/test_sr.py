@@ -662,10 +662,9 @@ def test_nguyen5():
     model = sr.SR(niterations = 3,
                   unary_operators = {"cos": (sympy.cos, np.cos),
                                      "sin": (sympy.sin, np.sin)},
-                  binary_operators = {"+": (operator.add, operator.add),
-                                      "*": (operator.mul, operator.mul)},
-                  operator_depth = {"sin": 1, "cos": 1},
+                  binary_operators = {"*": (operator.mul, operator.mul)},
                   discrete_param_values = ["(-1, 1)"],
+                  operator_depth = {"sin": 1, "cos": 1, "*": 2},
                   foundBreak = True)
 
     n = 100
