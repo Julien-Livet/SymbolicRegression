@@ -488,12 +488,6 @@ def test_2():
     assert(model.bestExpressions[0][0] == sympy.sympify("sin(x)*exp(x)"))
 
 def test_3():
-    #TODO: This test should work but it fails because expanded expressions produce more complex expressions than expected
-    #Example below:
-    #Before simplify _34*(_0*x + _1)/(_32*x + _33) + _35
-    #After simplify _38/(_36*x + _37) + _41*x/(_39*x + _40) + _42
-    #Whereas expected is (_2*x + _3)/(_4*x + _5) + _6
-    
     #x/(1+x**2)
 
     model = sr.SR(niterations = 2,

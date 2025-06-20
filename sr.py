@@ -1328,7 +1328,7 @@ class Expr:
         return expr
 
     def simplify(self):
-        sym_expr = sympy.expand(self.sym_expr)
+        sym_expr = sympy.factor(sympy.expand(self.sym_expr))
 
         n_p = new_params(sym_expr, self.symbol_vars)
 
