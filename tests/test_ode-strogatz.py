@@ -233,7 +233,7 @@ def test_d_glider1():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-0.05*x**2-sin(y)")))
-"""
+
 def test_d_glider2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_glider2.txt")
 
@@ -264,7 +264,7 @@ def test_d_glider2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("x - cos(y)/x")))
-"""
+
 def test_d_lv1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_lv1.txt")
 
