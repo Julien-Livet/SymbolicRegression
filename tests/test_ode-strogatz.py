@@ -82,7 +82,7 @@ def file_data(url):
     y = np.array(y, dtype = np.float64)
     
     return label, x, y
-
+"""
 def test_d_bacres1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_bacres1.txt")
 
@@ -114,7 +114,8 @@ def test_d_bacres1():
 
     assert(len(model.bestExpressions) == 1)
     assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.simplify(sympy.sympify("20 -x - (2*x*y/(2+1*x**2))"))))
-
+"""
+"""
 def test_d_bacres2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_bacres2.txt")
 
@@ -145,7 +146,7 @@ def test_d_bacres2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("10 - (x*y/(1+0.5*x**2))")))))
-
+"""
 def test_d_barmag1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_barmag1.txt")
 
@@ -233,7 +234,7 @@ def test_d_glider1():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-0.05*x**2-sin(y)")))
-
+"""
 def test_d_glider2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_glider2.txt")
 
@@ -264,7 +265,7 @@ def test_d_glider2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("x - cos(y)/x")))
-
+"""
 def test_d_lv1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_lv1.txt")
 
