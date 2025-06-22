@@ -1592,6 +1592,9 @@ class SR:
                                        binary_operators, self.maxfev, self.epsloss, self.fixed_cst_value,
                                        self.discrete_param_values, self.brute_force_limit)
             opt_exprs[str(exprs[-1].opt_expr)] = exprs[-1].loss
+            
+            if (self.verbose):
+                print("Extra start symbolic expression", exprs[-1].sym_expr, exprs[-1].opt_expr, exprs[-1].loss)
 
             if (self.callback):
                 self.callback(exprs[-1], y)

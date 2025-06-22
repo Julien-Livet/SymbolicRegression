@@ -82,7 +82,7 @@ def file_data(url):
     y = np.array(y, dtype = np.float64)
     
     return label, x, y
-"""
+
 def test_d_bacres1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_bacres1.txt")
 
@@ -102,8 +102,6 @@ def test_d_bacres1():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add),
                                       "/": (operator.truediv, operator.truediv)},
-                  #extra_start_sym_expr = [sympy.sympify("_1235/(_1228*x**2 + _1230*x + _1233) + _1239*x/(_1236*x**2 + _1237*x + _1238) + _1244*y/(_1240*x**2 + _1241*x + _1242) + _1248*x*y/(_1245*x**2 + _1246*x + _1247) + _1251")],
-                  discrete_param_values = ["(-2, 2)", 20],
                   operator_depth = {"/": 1, "*": 2, "+": 2},
                   #callback = callback,
                   #monothread = True,
@@ -113,9 +111,8 @@ def test_d_bacres1():
     model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sympy.expand(model.bestExpressions[0][0]) == sympy.expand(sympy.simplify(sympy.sympify("20 -x - (2*x*y/(2+1*x**2))"))))
-"""
-"""
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("20 -x - (*x*y/(1+0.5*x**2))")))))
+
 def test_d_bacres2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_bacres2.txt")
 
@@ -135,7 +132,6 @@ def test_d_bacres2():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add),
                                       "/": (operator.truediv, operator.truediv)},
-                  discrete_param_values = ["(-2, 2)", 10],
                   operator_depth = {"/": 1, "*": 2, "+": 2},
                   #callback = callback,
                   #monothread = True,
@@ -146,7 +142,7 @@ def test_d_bacres2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("10 - (x*y/(1+0.5*x**2))")))))
-"""
+
 def test_d_barmag1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_barmag1.txt")
 
