@@ -230,7 +230,7 @@ def test_d_glider1():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("-0.05*x**2-sin(y)")))
-"""
+
 def test_d_glider2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_glider2.txt")
 
@@ -245,13 +245,14 @@ def test_d_glider2():
 
     plt.ion()
 
+    """
     model = sr.SR(niterations = 3,
                   verbose = False,
                   unary_operators = {"cos": (sympy.cos, np.cos)},
                   binary_operators = {"/": (operator.truediv, operator.truediv),
                                       "+": (operator.add, operator.add)},
                   discrete_param_values = ["(-1, 1)"],
-                  operator_depth = {"cos": 1, "/": 1, "+": 1},
+                  operator_depth = {"cos": 1, "/": 1, "+": 2},
                   #callback = callback,
                   #monothread = True,
                   maxcomplexity = 20,
@@ -261,7 +262,27 @@ def test_d_glider2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("x - cos(y)/x")))
-"""
+    """
+
+    #It works with change of variable
+    cy = np.cos(y)
+    sy = np.sin(y)
+
+    model = sr.SR(niterations = 3,
+                  verbose = False,
+                  binary_operators = {"/": (operator.truediv, operator.truediv),
+                                      "+": (operator.add, operator.add)},
+                  operator_depth = {"/": 1, "+": 2},
+                  #callback = callback,
+                  #monothread = True,
+                  maxcomplexity = 20,
+                  foundBreak = True)
+
+    model.fit([x, cy, sy], label, ["x", "cy", "sy"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("x - cy/x")))))
+
 def test_d_lv1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_lv1.txt")
 
@@ -402,13 +423,14 @@ def test_d_shearflow1():
                   discrete_param_values = ["(-1, 1)"],
                   #callback = callback,
                   #monothread = True,
+    #It works with change of variable
                   foundBreak = True)
 
     model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("cot(y)*cos(x)")))))
-"""
+
 def test_d_shearflow2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_shearflow2.txt")
 
@@ -423,6 +445,7 @@ def test_d_shearflow2():
 
     plt.ion()
 
+    """
     model = sr.SR(niterations = 3,
                   verbose = False,
                   unary_operators = {"sin": (sympy.sin, np.sin),
@@ -439,7 +462,28 @@ def test_d_shearflow2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("(cos(y)**2+0.1*sin(y)**2)*sin(x)")))))
-"""
+    """
+
+    #It works with change of variable
+    cx = np.cos(x)
+    sx = np.sin(x)
+    cy = np.cos(y)
+    sy = np.sin(y)
+
+    model = sr.SR(niterations = 3,
+                  verbose = False,
+                  binary_operators = {"*": (operator.mul, operator.mul),
+                                      "+": (operator.add, operator.add)},
+                  operator_depth = {"*": 2, "+": 2},
+                  discrete_param_values = ["(0, 1)", 0.1],
+                  #callback = callback,
+                  #monothread = True,
+                  foundBreak = True)
+
+    model.fit([cx, sx, cy, sy], label, ["cx", "sx", "cy", "sy"])
+
+    assert(len(model.bestExpressions) == 1)
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("(cy**2+0.1*sy**2)*sx")))))
 
 def test_d_vdp1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_vdp1.txt")
