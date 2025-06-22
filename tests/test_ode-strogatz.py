@@ -440,15 +440,13 @@ def test_d_shearflow2():
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("(cos(y)**2+0.1*sin(y)**2)*sin(x)")))))
 """
-"""
-#This test need some work to find the right expression
 
 def test_d_vdp1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_vdp1.txt")
 
     #import matplotlib.pyplot as plt
     #plt.scatter(list(range(0, len(label))), label)
-    #plt.scatter(list(range(0, len(label))), 10*(y-(1/3*(x**3-y))))
+    #plt.scatter(list(range(0, len(label))), 10*(y-(1/3*(x**3-x))))
     #plt.show()
 
     global loss, plot_y
@@ -462,7 +460,6 @@ def test_d_vdp1():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add)},
                   operator_depth = {"*": 2, "+": 2},
-                  discrete_param_values = [0, -10/3, 40/3],
                   #callback = callback,
                   #monothread = True,
                   foundBreak = True)
@@ -470,8 +467,8 @@ def test_d_vdp1():
     model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("10*(y-(1/3*(x**3-y)))")))))
-"""
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("10*(y-(1/3*(x**3-x)))")))))
+
 def test_d_vdp2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_vdp2.txt")
 
