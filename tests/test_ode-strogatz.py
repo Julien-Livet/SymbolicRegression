@@ -319,7 +319,7 @@ def test_d_lv2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("2*y-x*y-y**2")))
-"""
+
 def test_d_predprey1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_predprey1.txt")
 
@@ -339,7 +339,6 @@ def test_d_predprey1():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add),
                                       "/": (operator.truediv, operator.truediv)},
-                  discrete_param_values = ["(-1, 1)", 4],
                   operator_depth = {"/": 1, "*": 2, "+": 4},
                   maxcomplexity = 25,
                   #callback = callback,
@@ -370,7 +369,6 @@ def test_d_predprey2():
                   binary_operators = {"*": (operator.mul, operator.mul),
                                       "+": (operator.add, operator.add),
                                       "/": (operator.truediv, operator.truediv)},
-                  discrete_param_values = ["(-1, 1)", -0.075, 0.075],
                   operator_depth = {"/": 1, "*": 2, "+": 2},
                   #callback = callback,
                   #monothread = True,
@@ -380,7 +378,7 @@ def test_d_predprey2():
 
     assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("y*(x/(1+x)-0.075*y)")))))
-"""
+
 def test_d_shearflow1():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_shearflow1.txt")
 
