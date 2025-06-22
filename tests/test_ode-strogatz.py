@@ -111,7 +111,7 @@ def test_d_bacres1():
     model.fit([x, y], label, ["x", "y"])
 
     assert(len(model.bestExpressions) == 1)
-    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("20 -x - (*x*y/(1+0.5*x**2))")))))
+    assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.expand(sympy.simplify(sympy.sympify("20 -x - (x*y/(1+0.5*x**2))")))))
 
 def test_d_bacres2():
     label, x, y = file_data("https://raw.githubusercontent.com/lacava/ode-strogatz/master/d_bacres2.txt")
