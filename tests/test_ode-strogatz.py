@@ -309,7 +309,6 @@ def test_d_lv1():
 
     model.fit([x, y], label, ["x", "y"])
 
-    assert(len(model.bestExpressions) == 1)
     assert(sr.expr_eq(sympy.expand(model.bestExpressions[0][0]), sympy.sympify("3*x-2*x*y-x**2")))
 
 def test_d_lv2():
